@@ -53,7 +53,7 @@ export function HostMenu({
       />
       <div
         ref={panel}
-        className="relative z-10 flex max-h-[85dvh] w-full max-w-md flex-col overflow-y-auto overscroll-contain rounded-t-2xl border border-amber-900/40 bg-[#1a1208] p-4 shadow-2xl sm:rounded-2xl sm:p-5"
+        className="relative z-10 flex max-h-[85dvh] w-full max-w-md flex-col overflow-y-auto overscroll-contain rounded-t-3xl border border-white/10 bg-[#14100a]/95 p-4 shadow-2xl backdrop-blur-md sm:rounded-3xl sm:p-5"
       >
         <div className="mb-3 flex items-center justify-between">
           <h2 className="font-[family-name:var(--font-display)] text-xl text-amber-300">

@@ -142,3 +142,19 @@ body {
 .seat-chat-bubble {
   animation: seat-bubble-in 0.28s ease-out both;
 }
+
+.seat-folded {
+  filter: grayscale(0.85);
+  opacity: 0.42;
+}
+
+.action-pill {
+  transition:
+    transform 0.12s ease,
+    background 0.15s ease,
+    box-shadow 0.15s ease;
+}
+
+.action-pill:active:not(:disabled) {
+  transform: scale(0.96);
+}

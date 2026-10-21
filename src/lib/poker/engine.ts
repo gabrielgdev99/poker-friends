@@ -70,6 +70,7 @@ function resetBets(room: Room) {
   room.minRaise = room.bigBlind;
 }
 
+/** Folded / all-in / unseated players never act — turn clock & bots skip them. */
 function needsAction(p: Player, room: Room): boolean {
   if (p.folded || p.allIn || p.seat === null) return false;
   if (!p.actedThisRound) return true;

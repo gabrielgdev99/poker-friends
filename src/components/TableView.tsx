@@ -51,29 +51,38 @@ function SeatAvatar({
   avatarUrl,
   chipColor,
   acting,
+  folded,
 }: {
   emoji: string;
   avatarUrl: string | null;
   chipColor: string;
   acting?: boolean;
+  folded?: boolean;
 }) {
   return (
     <div
-      className={`relative mx-auto flex h-9 w-9 items-center justify-center overflow-hidden rounded-full border-2 bg-emerald-950 shadow-md sm:h-10 sm:w-10 ${
-        acting ? "border-amber-200" : "border-emerald-800/80"
+      className={`relative mx-auto flex h-9 w-9 items-center justify-center overflow-hidden rounded-full border bg-[#0c1a12]/90 shadow-md sm:h-10 sm:w-10 ${
+        folded
+          ? "border-stone-500/40 grayscale"
+          : acting
+            ? "border-amber-200/90 ring-2 ring-amber-300/50"
+            : "border-white/10"
       }`}
-      style={{ boxShadow: `0 0 0 1px ${chipColor}55` }}
+      style={folded ? undefined : { boxShadow: `0 0 0 1.5px ${chipColor}66` }}
     >
       {avatarUrl ? (
         // eslint-disable-next-line @next/next/no-img-element
         <img
           src={avatarUrl}
           alt=""
-          className="h-full w-full object-cover"
+          className={`h-full w-full object-cover ${folded ? "opacity-45" : ""}`}
           referrerPolicy="no-referrer"
         />
       ) : (
-        <span className="text-lg leading-none sm:text-xl" aria-hidden>
+        <span
+          className={`text-lg leading-none sm:text-xl ${folded ? "opacity-40" : ""}`}
+          aria-hidden
+        >
           {emoji || "🙏"}
         </span>
       )}
@@ -401,26 +410,26 @@ export function TableView({ code }: { code: string }) {
   const maxSeats = Math.min(10, Math.max(2, room.maxSeats ?? 10));
 
   return (
-    <div className="relative flex h-dvh max-h-dvh flex-col overflow-hidden text-amber-50">
+    <div className="relative flex h-dvh max-h-dvh flex-col overflow-hidden bg-[radial-gradient(ellipse_at_top,#1a2e22_0%,#0a100c_55%,#070a08_100%)] text-amber-50">
       {showToast && myTurn && (
-        <div className="sua-vez-toast pointer-events-none fixed left-1/2 top-14 z-50 -translate-x-1/2 rounded bg-amber-500 px-4 py-1.5 font-[family-name:var(--font-display)] text-base text-[#1a1208] shadow-lg">
-          Sua vez! 🃏
+        <div className="sua-vez-toast pointer-events-none fixed left-1/2 top-14 z-50 -translate-x-1/2 rounded-full bg-amber-400 px-5 py-1.5 font-[family-name:var(--font-display)] text-base text-[#1a1208] shadow-lg shadow-amber-900/40">
+          Sua vez!
         </div>
       )}
 
-      <header className="relative z-20 flex shrink-0 items-center justify-between gap-2 px-3 py-1.5 sm:px-4">
+      <header className="relative z-20 flex shrink-0 items-center justify-between gap-2 px-3 py-2 sm:px-4">
         <div className="min-w-0">
-          <p className="font-[family-name:var(--font-display)] text-base tracking-tight text-amber-300 sm:text-lg">
+          <p className="font-[family-name:var(--font-display)] text-lg tracking-tight text-amber-300 sm:text-xl">
             Poker Friends
           </p>
-          <p className="truncate text-[0.55rem] uppercase tracking-[0.16em] text-amber-200/45">
-            {room.code}
+          <p className="truncate text-[0.6rem] tracking-wide text-amber-200/40">
+            <span className="font-mono tracking-widest text-amber-200/55">{room.code}</span>
             {streetLabel ? ` · ${streetLabel}` : ""}
             {room.handNumber > 0 ? ` · #${room.handNumber}` : ""}
             {" · "}
             {room.smallBlind}/{room.bigBlind}
-            {` · ${maxSeats} assentos`}
-            {sched?.enabled && room.blindsProgress ? ` ↑${room.blindsProgress}` : ""}
+            {` · ${maxSeats} lugares`}
+            {sched?.enabled && room.blindsProgress ? ` · ↑ ${room.blindsProgress}` : ""}
           </p>
         </div>
         <div className="flex items-center gap-2">
@@ -429,7 +438,7 @@ export function TableView({ code }: { code: string }) {
             disabled={pending}
             onClick={leaveTable}
             title="Sai só você — a sala continua pros outros"
-            className="border border-rose-400/35 px-2 py-1 text-[0.6rem] text-rose-100/90 hover:bg-rose-500/10"
+            className="action-pill rounded-full border border-white/10 bg-white/5 px-3 py-1 text-[0.65rem] text-rose-100/85 backdrop-blur-sm hover:bg-rose-500/15"
           >
             Sair
           </button>
@@ -438,7 +447,7 @@ export function TableView({ code }: { code: string }) {
       </header>
 
       {(isSpectator && !room.tableEnded) || room.tableEnded ? (
-        <p className="shrink-0 px-3 py-1 text-center text-[0.7rem] text-amber-100/80">
+        <p className="mx-3 shrink-0 rounded-full bg-amber-500/10 px-3 py-1.5 text-center text-[0.7rem] text-amber-100/85">
           {room.tableEnded
             ? `🏆 Mesa conquistada${champ ? `: ${champ.nickname}` : ""}. Pode sentar de novo.`
             : "Você faliu — só assiste até alguém conquistar a mesa."}
@@ -446,20 +455,23 @@ export function TableView({ code }: { code: string }) {
       ) : null}
 
       {room.status === "playing" && room.actingSeat !== null && (
-        <div className="relative z-20 mx-auto w-full max-w-3xl shrink-0 px-3">
-          <div className="mb-0.5 flex justify-between text-[0.65rem] text-amber-100/70">
-            <span>
-              {timer.thinking ? "🤔 " : ""}
+        <div className="relative z-20 mx-auto w-full max-w-lg shrink-0 px-4">
+          <div className="mb-1 flex justify-between text-[0.65rem] text-amber-100/65">
+            <span className="truncate">
+              {timer.thinking ? "… " : ""}
               {actingName}
-              {myTurn ? " (você)" : ""}
+              {myTurn ? " · você" : ""}
               {room.myHandHint && !me?.folded ? ` · ${room.myHandHint}` : ""}
+              {me?.folded ? " · fold" : ""}
             </span>
-            <span className={timer.left <= 5 ? "text-rose-300" : ""}>{timer.left}s</span>
+            <span className={`tabular-nums ${timer.left <= 5 ? "text-rose-300" : ""}`}>
+              {timer.left}s
+            </span>
           </div>
-          <div className="h-1 overflow-hidden rounded-full bg-emerald-950/80">
+          <div className="h-1 overflow-hidden rounded-full bg-black/35">
             <div
-              className={`h-full transition-[width] duration-200 ${
-                timer.left <= 5 ? "bg-rose-400" : "bg-amber-400"
+              className={`h-full rounded-full transition-[width] duration-200 ${
+                timer.left <= 5 ? "bg-rose-400" : "bg-gradient-to-r from-amber-500 to-amber-300"
               }`}
               style={{ width: `${timer.pct}%` }}
             />
@@ -477,24 +489,24 @@ export function TableView({ code }: { code: string }) {
       >
         <div className="relative h-full max-h-full w-full max-w-[1000px] aspect-[5/4] sm:aspect-[4/3]">
           <div
-            className="absolute inset-[1%] rounded-[48%] border-[8px] shadow-[inset_0_0_60px_rgba(0,0,0,0.45)] sm:inset-[2%] sm:border-[10px]"
+            className="absolute inset-[1%] rounded-[48%] border-[6px] shadow-[inset_0_0_70px_rgba(0,0,0,0.5),0_8px_40px_rgba(0,0,0,0.35)] sm:inset-[2%] sm:border-[8px]"
             style={{
               borderColor: felt.rim,
-              background: `radial-gradient(ellipse_at_center,${felt.feltLit} 0%,${felt.felt} 40%,#0f2418 100%)`,
+              background: `radial-gradient(ellipse_at_center,${felt.feltLit} 0%,${felt.felt} 42%,#0c1f16 100%)`,
             }}
           >
-            <div className="absolute inset-[3%] rounded-[48%] border border-amber-400/15" />
+            <div className="absolute inset-[3.5%] rounded-[48%] border border-amber-300/10" />
           </div>
 
           <div className="absolute left-1/2 top-[40%] z-10 flex w-[94%] -translate-x-1/2 -translate-y-1/2 flex-col items-center gap-1.5 sm:top-[44%]">
-            <p className="text-[0.6rem] uppercase tracking-[0.25em] text-emerald-200/55">
+            <p className="rounded-full bg-black/25 px-2.5 py-0.5 text-[0.55rem] uppercase tracking-[0.22em] text-emerald-100/50 backdrop-blur-[2px]">
               {streetLabel ?? "Mesa"}
             </p>
             <div key={potBump} className="pot-bump">
               {room.pot > 0 ? (
                 <ChipStack amount={room.pot} size="lg" label={`Pote ${formatChips(room.pot)}`} />
               ) : (
-                <span className="rounded-full bg-black/45 px-3 py-1 text-sm text-amber-200/70">
+                <span className="rounded-full bg-black/40 px-3 py-1 text-sm text-amber-200/60 backdrop-blur-sm">
                   Pote 0
                 </span>
               )}
@@ -510,20 +522,20 @@ export function TableView({ code }: { code: string }) {
               ))}
             </div>
             {room.status === "showdown" && room.winners && (
-              <div className="rounded bg-amber-500/15 px-2 py-1 text-center text-xs text-amber-200">
+              <div className="rounded-2xl bg-amber-500/15 px-3 py-1.5 text-center text-xs text-amber-100 backdrop-blur-sm">
                 {room.winners.map((w) => {
                   const p = room.players.find((x) => x.seat === w.seat);
                   return (
                     <p key={w.seat}>
                       {p?.nickname ?? "?"} +{w.amount}
-                      <span className="text-emerald-100/60"> · {w.handName}</span>
+                      <span className="text-emerald-100/55"> · {w.handName}</span>
                     </p>
                   );
                 })}
               </div>
             )}
             {room.lastAction && (
-              <p className="max-w-[90%] truncate text-[0.65rem] text-amber-100/50">
+              <p className="max-w-[88%] truncate rounded-full bg-black/20 px-2.5 py-0.5 text-[0.65rem] text-amber-100/45">
                 {room.lastAction}
               </p>
             )}
@@ -549,9 +561,10 @@ export function TableView({ code }: { code: string }) {
             const isDealer = room.dealerSeat === seat && room.status !== "lobby";
             const isSb = room.sbSeat === seat && room.status === "playing";
             const isBb = room.bbSeat === seat && room.status === "playing";
-            const isActing = room.actingSeat === seat && room.status === "playing";
+            const isActing = room.actingSeat === seat && room.status === "playing" && !p?.folded;
             const isMe = p?.id === playerId;
             const empty = !p;
+            const folded = !!p?.folded && room.status !== "lobby";
             const lastHere = room.lastSeatAction?.seat === seat;
             const bubble = seatBubbles.get(seat);
             // Hero hole cards live in the bottom tray — keep seat compact
@@ -563,19 +576,19 @@ export function TableView({ code }: { code: string }) {
                 disabled={!empty || !canSit || pending}
                 onClick={() => api("sit", { seat })}
                 style={{ top: pos.top, left: pos.left }}
-                className={`absolute z-20 w-[5.25rem] -translate-x-1/2 -translate-y-1/2 sm:w-28 ${
+                className={`absolute z-20 w-[5.5rem] -translate-x-1/2 -translate-y-1/2 sm:w-[7.25rem] ${
                   empty && canSit ? "cursor-pointer opacity-80 hover:opacity-100" : "cursor-default"
                 }`}
               >
                 {!empty && (
-                  <div className="relative mb-0.5">
-                    {bubble && (
+                  <div className={`relative mb-0.5 ${folded ? "seat-folded" : ""}`}>
+                    {bubble && !folded && (
                       <div
                         key={bubble.id}
                         className="seat-chat-bubble pointer-events-none absolute bottom-full left-1/2 z-30 mb-1 max-w-[7.5rem] -translate-x-1/2"
                       >
                         <div
-                          className={`rounded-xl bg-[#f7f3ea] px-2 py-1 text-[#1a1208] shadow-md ${
+                          className={`rounded-2xl bg-[#f7f3ea] px-2.5 py-1 text-[#1a1208] shadow-lg ${
                             bubble.kind === "emoji"
                               ? "text-center text-xl leading-none"
                               : "text-[0.65rem] leading-snug"
@@ -591,25 +604,30 @@ export function TableView({ code }: { code: string }) {
                       avatarUrl={p.avatarUrl}
                       chipColor={p.chipColor || "#f0b429"}
                       acting={isActing}
+                      folded={folded}
                     />
                   </div>
                 )}
                 <div
-                  className={`rounded-lg px-1 py-1 text-center sm:px-2 sm:py-1.5 ${
-                    isActing
-                      ? `bg-amber-500/95 text-emerald-950 ring-2 ring-amber-100 ${isMe ? "seat-your-turn" : ""}`
-                      : empty
-                        ? "border border-dashed border-emerald-300/25 bg-emerald-950/40 text-emerald-100/50"
-                        : p?.folded
-                          ? "bg-emerald-950/50 text-emerald-100/40"
-                          : "bg-emerald-950/90 text-amber-50"
+                  className={`px-1.5 py-1 text-center sm:px-2.5 sm:py-1.5 ${
+                    empty
+                      ? "rounded-full border border-dashed border-emerald-300/20 bg-black/20 text-emerald-100/40"
+                      : folded
+                        ? "seat-folded rounded-2xl bg-black/25 text-stone-300"
+                        : isActing
+                          ? `rounded-2xl bg-amber-400/95 text-emerald-950 shadow-md shadow-amber-900/30 ${isMe ? "seat-your-turn" : ""}`
+                          : "rounded-2xl bg-black/40 text-amber-50 backdrop-blur-md"
                   }`}
                 >
                   {empty ? (
                     <span className="text-[0.6rem]">{canSit ? `+ ${seat + 1}` : "—"}</span>
                   ) : (
                     <>
-                      <p className="truncate text-[0.6rem] font-medium sm:text-xs">
+                      <p
+                        className={`truncate text-[0.6rem] font-medium sm:text-xs ${
+                          folded ? "text-stone-400" : ""
+                        }`}
+                      >
                         {p.nickname}
                         {p.isBot && p.botDifficulty
                           ? ` · ${BOT_SHORT[p.botDifficulty]}`
@@ -617,15 +635,27 @@ export function TableView({ code }: { code: string }) {
                         {isMe ? " · você" : ""}
                       </p>
                       <p
-                        className="text-[0.7rem] font-semibold tabular-nums sm:text-sm"
-                        style={{ color: p.chipColor || "#f0b429" }}
+                        className={`text-[0.7rem] font-semibold tabular-nums sm:text-sm ${
+                          folded ? "text-stone-500" : ""
+                        }`}
+                        style={folded ? undefined : { color: p.chipColor || "#f0b429" }}
                       >
                         {formatChips(p.chips)}
                       </p>
-                      {p.folded && <p className="text-[0.55rem]">fold</p>}
-                      {p.allIn && !p.folded && <p className="text-[0.55rem]">all-in</p>}
+                      {folded && (
+                        <p className="mt-0.5 text-[0.55rem] font-semibold uppercase tracking-wider text-stone-400">
+                          Fold
+                        </p>
+                      )}
+                      {p.allIn && !folded && (
+                        <p className="text-[0.55rem] font-medium text-amber-200/90">all-in</p>
+                      )}
                       {showSeatCards && (
-                        <div className="mt-0.5 flex justify-center gap-0.5">
+                        <div
+                          className={`mt-0.5 flex justify-center gap-0.5 ${
+                            folded ? "opacity-50 grayscale" : ""
+                          }`}
+                        >
                           {p.hole ? (
                             p.hole.map((c, i) => (
                               <PlayingCard key={i} card={c} size="seat" />
@@ -639,32 +669,36 @@ export function TableView({ code }: { code: string }) {
                         </div>
                       )}
                       {isMe && p.holeCount > 0 && !p.hole && (
-                        <div className="mt-0.5 flex justify-center gap-0.5">
+                        <div
+                          className={`mt-0.5 flex justify-center gap-0.5 ${
+                            folded ? "opacity-50 grayscale" : ""
+                          }`}
+                        >
                           <PlayingCard hidden size="seat" />
                           <PlayingCard hidden size="seat" />
                         </div>
                       )}
-                      {lastHere && room.lastSeatAction && (
-                        <p className="mt-0.5 truncate text-[0.55rem] text-amber-300/90">
+                      {lastHere && room.lastSeatAction && !folded && (
+                        <p className="mt-0.5 truncate text-[0.55rem] text-amber-200/80">
                           {room.lastSeatAction.label}
                         </p>
                       )}
                     </>
                   )}
                 </div>
-                <div className="absolute -right-1 -top-1 flex gap-0.5">
+                <div className="absolute -right-0.5 top-8 flex flex-col gap-0.5 sm:top-9">
                   {isDealer && (
-                    <span className="flex h-4 w-4 items-center justify-center rounded-full bg-amber-100 text-[0.5rem] font-bold text-emerald-950">
+                    <span className="flex h-4 w-4 items-center justify-center rounded-full bg-amber-100/95 text-[0.5rem] font-bold text-emerald-950 shadow">
                       D
                     </span>
                   )}
                   {isSb && (
-                    <span className="flex h-4 w-4 items-center justify-center rounded-full bg-sky-200 text-[0.45rem] font-bold text-emerald-950">
+                    <span className="flex h-4 w-4 items-center justify-center rounded-full bg-sky-200/95 text-[0.45rem] font-bold text-emerald-950 shadow">
                       SB
                     </span>
                   )}
                   {isBb && (
-                    <span className="flex h-4 w-4 items-center justify-center rounded-full bg-orange-200 text-[0.45rem] font-bold text-emerald-950">
+                    <span className="flex h-4 w-4 items-center justify-center rounded-full bg-orange-200/95 text-[0.45rem] font-bold text-emerald-950 shadow">
                       BB
                     </span>
                   )}
@@ -676,7 +710,7 @@ export function TableView({ code }: { code: string }) {
       </div>
 
       {error && (
-        <p className="pointer-events-none fixed left-1/2 top-20 z-40 -translate-x-1/2 rounded bg-rose-950/90 px-3 py-1 text-xs text-rose-100">
+        <p className="pointer-events-none fixed left-1/2 top-20 z-40 -translate-x-1/2 rounded-full bg-rose-950/90 px-4 py-1.5 text-xs text-rose-100 shadow-lg">
           {error}
         </p>
       )}
@@ -687,23 +721,32 @@ export function TableView({ code }: { code: string }) {
           className="pointer-events-none fixed left-1/2 z-[38] flex -translate-x-1/2 flex-col items-center gap-1"
           style={{
             bottom: canBet
-              ? "calc(5.75rem + env(safe-area-inset-bottom))"
+              ? "calc(5.5rem + env(safe-area-inset-bottom))"
               : "calc(1.25rem + env(safe-area-inset-bottom))",
           }}
         >
-          <div className="flex gap-1.5 rounded-xl border border-amber-900/35 bg-[#1a1208]/80 px-2.5 py-1.5 shadow-xl backdrop-blur-sm">
+          <div
+            className={`flex gap-1.5 rounded-2xl border border-white/10 bg-[#120e08]/75 px-3 py-2 shadow-2xl backdrop-blur-md ${
+              me.folded ? "seat-folded" : ""
+            }`}
+          >
             {me.hole.map((c, i) => (
               <PlayingCard key={i} card={c} size="hero" dealDelayMs={i * 80} />
             ))}
           </div>
+          {me.folded && (
+            <span className="rounded-full bg-stone-800/80 px-2.5 py-0.5 text-[0.6rem] font-semibold uppercase tracking-wider text-stone-300">
+              Fold
+            </span>
+          )}
         </div>
       )}
 
       {/* Floating actions — below hero tray */}
       {canBet && (
-        <div className="pointer-events-none fixed inset-x-0 bottom-[calc(0.75rem+env(safe-area-inset-bottom))] z-40 flex flex-col items-center gap-1.5 px-3">
+        <div className="pointer-events-none fixed inset-x-0 bottom-[calc(0.65rem+env(safe-area-inset-bottom))] z-40 flex flex-col items-center gap-2 px-3">
           {raiseOpen && (
-            <div className="pointer-events-auto flex flex-wrap items-center justify-center gap-1.5 rounded-2xl border border-amber-900/40 bg-[#1a1208]/95 px-3 py-2 shadow-xl backdrop-blur-md">
+            <div className="pointer-events-auto flex flex-wrap items-center justify-center gap-1.5 rounded-full border border-white/10 bg-[#14100a]/90 px-2.5 py-1.5 shadow-2xl backdrop-blur-md">
               {[
                 { label: "½ pote", amount: Math.min(allInTo, halfPot) },
                 { label: "Pote", amount: Math.min(allInTo, potBet) },
@@ -723,7 +766,7 @@ export function TableView({ code }: { code: string }) {
                     });
                     setRaiseOpen(false);
                   }}
-                  className="border border-amber-200/30 px-2.5 py-1.5 text-xs text-amber-100 hover:bg-amber-500/15 disabled:opacity-30"
+                  className="action-pill rounded-full px-3 py-1.5 text-xs text-amber-100/90 hover:bg-white/10 disabled:opacity-30"
                 >
                   {preset.label}
                 </button>
@@ -735,7 +778,7 @@ export function TableView({ code }: { code: string }) {
                 value={betInput}
                 onChange={(e) => setBetInput(e.target.value)}
                 placeholder={`${minRaiseTo}+`}
-                className="w-16 border border-amber-200/30 bg-emerald-950/60 px-2 py-1.5 text-sm outline-none"
+                className="w-16 rounded-full border border-white/10 bg-black/30 px-2.5 py-1.5 text-center text-sm outline-none focus:border-amber-400/40"
               />
               <button
                 type="button"
@@ -748,18 +791,18 @@ export function TableView({ code }: { code: string }) {
                   });
                   setRaiseOpen(false);
                 }}
-                className="bg-amber-500 px-3 py-1.5 text-sm font-medium text-emerald-950"
+                className="action-pill rounded-full bg-amber-400 px-3.5 py-1.5 text-sm font-semibold text-[#1a1208]"
               >
                 OK
               </button>
             </div>
           )}
-          <div className="pointer-events-auto flex items-center gap-2">
+          <div className="pointer-events-auto flex items-center gap-2 rounded-full border border-white/10 bg-[#120e08]/70 p-1.5 shadow-2xl backdrop-blur-md">
             <button
               type="button"
               disabled={pending}
               onClick={() => api("action", { action: "fold" })}
-              className="h-12 min-w-[4.25rem] rounded-2xl border border-rose-400/50 bg-rose-950/90 px-4 text-sm font-semibold text-rose-50 shadow-lg active:scale-95 sm:h-13"
+              className="action-pill h-11 min-w-[4rem] rounded-full bg-rose-950/80 px-4 text-sm font-semibold text-rose-50 ring-1 ring-rose-400/35 sm:h-12"
             >
               Fold
             </button>
@@ -768,7 +811,7 @@ export function TableView({ code }: { code: string }) {
                 type="button"
                 disabled={pending}
                 onClick={() => api("action", { action: "check" })}
-                className="h-12 min-w-[5.25rem] rounded-2xl border border-emerald-400/40 bg-emerald-900/95 px-5 text-sm font-semibold shadow-lg active:scale-95"
+                className="action-pill h-11 min-w-[5rem] rounded-full bg-emerald-800/90 px-5 text-sm font-semibold text-emerald-50 ring-1 ring-emerald-400/30 sm:h-12"
               >
                 Check
               </button>
@@ -777,7 +820,7 @@ export function TableView({ code }: { code: string }) {
                 type="button"
                 disabled={pending}
                 onClick={() => api("action", { action: "call" })}
-                className="h-12 min-w-[5.25rem] rounded-2xl border border-emerald-400/40 bg-emerald-900/95 px-5 text-sm font-semibold shadow-lg active:scale-95"
+                className="action-pill h-11 min-w-[5rem] rounded-full bg-emerald-800/90 px-5 text-sm font-semibold text-emerald-50 ring-1 ring-emerald-400/30 sm:h-12"
               >
                 Call {formatChips(Math.min(toCall, me?.chips ?? toCall))}
               </button>
@@ -786,7 +829,7 @@ export function TableView({ code }: { code: string }) {
               type="button"
               disabled={pending}
               onClick={() => setRaiseOpen((v) => !v)}
-              className="h-12 min-w-[4.25rem] rounded-2xl bg-amber-500 px-4 text-sm font-semibold text-emerald-950 shadow-lg active:scale-95"
+              className="action-pill h-11 min-w-[4rem] rounded-full bg-amber-400 px-4 text-sm font-semibold text-[#1a1208] shadow-md shadow-amber-900/40 sm:h-12"
             >
               {room.currentBet === 0 ? "Bet" : "Raise"}
             </button>
@@ -819,7 +862,7 @@ export function TableView({ code }: { code: string }) {
         <button
           type="button"
           onClick={() => setHostOpen(true)}
-          className="fixed bottom-[calc(6.5rem+env(safe-area-inset-bottom))] left-3 z-40 flex h-11 w-11 items-center justify-center rounded-full bg-[#2a1c0a] text-lg text-amber-300 shadow-lg ring-2 ring-amber-600/40 sm:left-5"
+          className="action-pill fixed bottom-[calc(6.5rem+env(safe-area-inset-bottom))] left-3 z-40 flex h-11 w-11 items-center justify-center rounded-full border border-white/10 bg-[#1a140c]/85 text-lg text-amber-300 shadow-xl backdrop-blur-md sm:left-5"
           aria-label="Menu da mesa"
           title="Menu anfitrião"
         >

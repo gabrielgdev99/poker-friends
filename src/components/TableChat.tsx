@@ -69,9 +69,9 @@ export function TableChat({
       className="pointer-events-none fixed bottom-[calc(5.75rem+env(safe-area-inset-bottom))] right-2 z-40 flex flex-col items-end gap-2 sm:bottom-[calc(6.5rem+env(safe-area-inset-bottom))] sm:right-5"
     >
       {open && (
-        <div className="pointer-events-auto flex w-[min(20rem,calc(100vw-1.5rem))] flex-col overflow-hidden rounded-2xl border border-amber-900/40 bg-[#1a1208]/95 shadow-2xl backdrop-blur-md">
-          <div className="flex items-center justify-between border-b border-amber-900/30 px-3 py-2">
-            <p className="text-[0.65rem] uppercase tracking-[0.2em] text-amber-200/60">
+        <div className="pointer-events-auto flex w-[min(20rem,calc(100vw-1.5rem))] flex-col overflow-hidden rounded-3xl border border-white/10 bg-[#14100a]/92 shadow-2xl backdrop-blur-md">
+          <div className="flex items-center justify-between border-b border-white/5 px-3 py-2">
+            <p className="text-[0.65rem] uppercase tracking-[0.2em] text-amber-200/55">
               Chat da mesa
             </p>
             <button
@@ -125,12 +125,12 @@ export function TableChat({
               onChange={(e) => setText(e.target.value)}
               maxLength={160}
               placeholder="Digite…"
-              className="min-w-0 flex-1 rounded-lg bg-black/30 px-2 py-1.5 text-sm text-amber-50 outline-none placeholder:text-amber-100/30"
+              className="min-w-0 flex-1 rounded-full bg-black/30 px-3 py-1.5 text-sm text-amber-50 outline-none placeholder:text-amber-100/30"
             />
             <button
               type="submit"
               disabled={pending || !text.trim()}
-              className="rounded-lg bg-amber-600/90 px-3 py-1.5 text-xs font-medium text-[#1a1208] hover:bg-amber-500 disabled:opacity-40"
+              className="rounded-full bg-amber-400 px-3.5 py-1.5 text-xs font-semibold text-[#1a1208] hover:bg-amber-300 disabled:opacity-40"
             >
               Enviar
             </button>
@@ -142,7 +142,7 @@ export function TableChat({
       <button
         type="button"
         onClick={() => setOpen((v) => !v)}
-        className="pointer-events-auto relative flex h-12 w-12 items-center justify-center rounded-full bg-amber-500 text-xl text-[#1a1208] shadow-lg ring-2 ring-amber-200/30 transition hover:bg-amber-400 active:scale-95"
+        className="pointer-events-auto relative flex h-11 w-11 items-center justify-center rounded-full border border-white/10 bg-amber-400 text-lg text-[#1a1208] shadow-xl transition hover:bg-amber-300 active:scale-95 sm:h-12 sm:w-12"
         aria-label={open ? "Fechar chat" : "Abrir chat"}
         aria-expanded={open}
       >
