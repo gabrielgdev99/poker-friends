@@ -114,27 +114,22 @@ export function HomeClient() {
   }, [search, player.mode]);
 
   function saveStyle(patch: Partial<UserProfile>) {
+    // Optimistic merge — each field independent; never replace whole profile with a partial
+    setProfile((p) => {
+      const base: UserProfile = p ?? {
+        nickname: nickname || player.name || "Jogador",
+        emoji: "🙏",
+        chipColor: "#f0b429",
+        feltAccent: "olive",
+      };
+      return { ...base, ...patch };
+    });
+    if (patch.nickname) setNickname(patch.nickname);
+
     if (player.isGuest) {
       player.updateGuestPrefs(patch);
-      setProfile((p) =>
-        p
-          ? { ...p, ...patch }
-          : {
-              nickname: nickname || "Convidado",
-              emoji: "☕",
-              chipColor: "#f0b429",
-              feltAccent: "olive",
-              ...patch,
-            },
-      );
-      if (patch.nickname) setNickname(patch.nickname);
-      void fetch("/api/profile", {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(patch),
-      });
-      return;
     }
+
     start(async () => {
       const res = await fetch("/api/profile", {
         method: "PUT",
@@ -146,8 +141,11 @@ export function HomeClient() {
         setError(data.error ?? "Falha ao salvar");
         return;
       }
-      setProfile(data.profile);
-      if (data.profile?.nickname) setNickname(data.profile.nickname);
+      if (data.profile) {
+        // Server returns full profile — keep all fields
+        setProfile(data.profile as UserProfile);
+        if (data.profile.nickname) setNickname(data.profile.nickname);
+      }
     });
   }
 
@@ -310,33 +308,71 @@ export function HomeClient() {
             {showStyle ? "Fechar estilo" : "Personalizar"}
           </button>
           {showStyle && options && (
-            <div className="space-y-2 border border-amber-900/30 bg-black/20 p-3">
-              <div className="flex flex-wrap gap-1">
-                {options.emojis.map((e) => (
-                  <button
-                    key={e}
-                    type="button"
-                    onClick={() => saveStyle({ emoji: e })}
-                    className={`px-1 text-lg ${
-                      profile?.emoji === e ? "bg-amber-500/30" : ""
-                    }`}
-                  >
-                    {e}
-                  </button>
-                ))}
+            <div className="space-y-3 border border-amber-900/30 bg-black/20 p-3">
+              <div>
+                <p className="mb-1 text-[0.6rem] uppercase tracking-wider text-amber-200/45">
+                  Emoji
+                </p>
+                <div className="flex flex-wrap gap-1" role="group" aria-label="Emoji">
+                  {options.emojis.map((e) => (
+                    <button
+                      key={e}
+                      type="button"
+                      onClick={() => saveStyle({ emoji: e })}
+                      aria-pressed={profile?.emoji === e}
+                      className={`px-1.5 text-lg ${
+                        profile?.emoji === e
+                          ? "bg-amber-500/35 ring-1 ring-amber-400"
+                          : "hover:bg-amber-500/10"
+                      }`}
+                    >
+                      {e}
+                    </button>
+                  ))}
+                </div>
               </div>
-              <div className="flex flex-wrap gap-2">
-                {options.chipColors.map((c) => (
-                  <button
-                    key={c}
-                    type="button"
-                    onClick={() => saveStyle({ chipColor: c })}
-                    className={`h-6 w-6 rounded-full ${
-                      profile?.chipColor === c ? "ring-2 ring-amber-200" : ""
-                    }`}
-                    style={{ background: c }}
-                  />
-                ))}
+              <div>
+                <p className="mb-1 text-[0.6rem] uppercase tracking-wider text-amber-200/45">
+                  Cor da ficha
+                </p>
+                <div className="flex flex-wrap gap-2" role="group" aria-label="Cor da ficha">
+                  {options.chipColors.map((c) => (
+                    <button
+                      key={c}
+                      type="button"
+                      onClick={() => saveStyle({ chipColor: c })}
+                      aria-pressed={profile?.chipColor === c}
+                      className={`h-7 w-7 rounded-full ${
+                        profile?.chipColor === c
+                          ? "ring-2 ring-amber-200 ring-offset-1 ring-offset-[#1a1208]"
+                          : ""
+                      }`}
+                      style={{ background: c }}
+                    />
+                  ))}
+                </div>
+              </div>
+              <div>
+                <p className="mb-1 text-[0.6rem] uppercase tracking-wider text-amber-200/45">
+                  Feltro (sua visão)
+                </p>
+                <div className="flex flex-wrap gap-1.5" role="group" aria-label="Feltro">
+                  {options.felts.map((f) => (
+                    <button
+                      key={f}
+                      type="button"
+                      onClick={() => saveStyle({ feltAccent: f })}
+                      aria-pressed={profile?.feltAccent === f}
+                      className={`border px-2 py-1 text-xs ${
+                        profile?.feltAccent === f
+                          ? "border-amber-400 bg-amber-500/15 text-amber-200"
+                          : "border-amber-900/40 text-amber-100/60 hover:border-amber-700/50"
+                      }`}
+                    >
+                      {options.feltLabels[f]}
+                    </button>
+                  ))}
+                </div>
               </div>
             </div>
           )}

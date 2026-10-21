@@ -90,7 +90,13 @@ export async function saveProfile(
   fallbackName?: string | null,
 ): Promise<UserProfile> {
   const cur = await getProfile(userId, fallbackName);
-  const next = sanitize({ ...cur, ...patch }, fallbackName);
+  // Merge only keys that are actually set (ignore undefined)
+  const merged: Partial<UserProfile> = { ...cur };
+  if (typeof patch.nickname === "string") merged.nickname = patch.nickname;
+  if (typeof patch.emoji === "string") merged.emoji = patch.emoji;
+  if (typeof patch.chipColor === "string") merged.chipColor = patch.chipColor;
+  if (typeof patch.feltAccent === "string") merged.feltAccent = patch.feltAccent;
+  const next = sanitize(merged, fallbackName);
   const r = redis();
   if (r) {
     await r.set(PREFIX + userId, JSON.stringify(next), { ex: 60 * 60 * 24 * 90 });
