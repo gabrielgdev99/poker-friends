@@ -2,6 +2,7 @@ import { Redis } from "@upstash/redis";
 import type { Room } from "@/lib/types";
 
 const PREFIX = "poker:room:";
+const INDEX = "poker:room-index";
 
 type MemoryBag = Map<string, Room>;
 
@@ -34,14 +35,44 @@ export async function getRoom(code: string): Promise<Room | null> {
 
 export async function saveRoom(room: Room): Promise<void> {
   room.updatedAt = Date.now();
-  const key = PREFIX + room.code.toUpperCase();
+  const code = room.code.toUpperCase();
+  const key = PREFIX + code;
   const r = redis();
   if (r) {
     // ponytail: 24h TTL; longer rooms can re-save on activity
     await r.set(key, room, { ex: 60 * 60 * 24 });
+    await r.sadd(INDEX, code);
     return;
   }
   memory().set(key, room);
+}
+
+export async function deleteRoom(code: string): Promise<boolean> {
+  const upper = code.toUpperCase();
+  const key = PREFIX + upper;
+  const r = redis();
+  if (r) {
+    const n = await r.del(key);
+    await r.srem(INDEX, upper);
+    return n > 0;
+  }
+  return memory().delete(key);
+}
+
+export async function listRooms(): Promise<Room[]> {
+  const r = redis();
+  if (r) {
+    const codes = (await r.smembers(INDEX)) as string[];
+    if (!codes.length) return [];
+    const rooms: Room[] = [];
+    for (const code of codes) {
+      const room = await getRoom(code);
+      if (room) rooms.push(room);
+      else await r.srem(INDEX, code.toUpperCase());
+    }
+    return rooms.sort((a, b) => b.updatedAt - a.updatedAt);
+  }
+  return [...memory().values()].sort((a, b) => b.updatedAt - a.updatedAt);
 }
 
 export async function roomExists(code: string): Promise<boolean> {

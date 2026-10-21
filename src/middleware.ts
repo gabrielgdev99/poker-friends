@@ -1,4 +1,5 @@
 import { auth } from "@/auth";
+import { isAdminEmail } from "@/lib/admin";
 import { NextResponse } from "next/server";
 
 export default auth((req) => {
@@ -6,6 +7,28 @@ export default auth((req) => {
 
   // Health/store probe stays public
   if (pathname === "/api/rooms" && req.method === "GET") {
+    return NextResponse.next();
+  }
+
+  const isAdminPath =
+    pathname.startsWith("/admin") || pathname.startsWith("/api/admin");
+
+  if (isAdminPath) {
+    if (!req.auth) {
+      if (pathname.startsWith("/api/")) {
+        return NextResponse.json({ error: "Não autenticado" }, { status: 401 });
+      }
+      const url = req.nextUrl.clone();
+      url.pathname = "/";
+      url.searchParams.set("login", "1");
+      return NextResponse.redirect(url);
+    }
+    if (!isAdminEmail(req.auth.user?.email)) {
+      if (pathname.startsWith("/api/")) {
+        return NextResponse.json({ error: "Acesso negado" }, { status: 403 });
+      }
+      return NextResponse.redirect(new URL("/", req.url));
+    }
     return NextResponse.next();
   }
 
@@ -26,5 +49,12 @@ export default auth((req) => {
 });
 
 export const config = {
-  matcher: ["/sala/:path*", "/api/rooms", "/api/rooms/:path*"],
+  matcher: [
+    "/sala/:path*",
+    "/api/rooms",
+    "/api/rooms/:path*",
+    "/admin",
+    "/admin/:path*",
+    "/api/admin/:path*",
+  ],
 };

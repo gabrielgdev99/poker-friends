@@ -60,6 +60,7 @@ Abra [http://localhost:3000](http://localhost:3000).
 | `AUTH_URL` | Opcional | Ex.: `http://localhost:3000` |
 | `UPSTASH_REDIS_REST_URL` | Produção | Redis REST URL |
 | `UPSTASH_REDIS_REST_TOKEN` | Produção | Redis REST token |
+| `ADMIN_EMAILS` | Opcional | E-mails admin (vírgula). Sem isso: `goncalvesvg1999@gmail.com` |
 
 Exemplo `.env.local`:
 
@@ -70,9 +71,18 @@ AUTH_GOOGLE_ID=xxxxx.apps.googleusercontent.com
 AUTH_GOOGLE_SECRET=xxxxx
 UPSTASH_REDIS_REST_URL=https://xxxxx.upstash.io
 UPSTASH_REDIS_REST_TOKEN=AXxxxx
+# ADMIN_EMAILS=goncalvesvg1999@gmail.com,amigo@example.com
 ```
 
 Salas no Redis expiram em **24h** (TTL renovado a cada save).
+
+## Admin
+
+Área `/admin` (link **Admin** só aparece na barra se o e-mail da sessão estiver na allowlist).
+
+- Gate no **middleware** + `layout` server-side (não-admin → redirect `/` ou 403 na API).
+- Lista salas ativas, códigos, jogadores, status; **fechar sala**; **expulsar** jogador (fora de mão).
+- Default allowlist: `goncalvesvg1999@gmail.com`. Override com `ADMIN_EMAILS`.
 
 ## Deploy na Vercel
 
@@ -96,6 +106,9 @@ Todas as rotas de sala (exceto `GET /api/rooms` health) exigem sessão Google.
 | `POST` | `/api/rooms/:code/sit` | Sentar `{ seat }` |
 | `POST` | `/api/rooms/:code/start` | Anfitrião inicia mão |
 | `POST` | `/api/rooms/:code/action` | `{ action, amount? }` |
+| `GET` | `/api/admin/rooms` | Lista salas (admin) |
+| `DELETE` | `/api/admin/rooms/:code` | Fecha/apaga sala (admin) |
+| `POST` | `/api/admin/rooms/:code` | `{ action: "kick", playerId }` (admin) |
 
 ## Limitações do MVP
 
