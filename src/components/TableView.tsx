@@ -1,32 +1,27 @@
 "use client";
 
+import { signIn } from "next-auth/react";
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useMemo, useRef, useState, useTransition } from "react";
 import { AuthBar } from "@/components/AuthBar";
+import { HostMenu } from "@/components/HostMenu";
 import { PlayingCard } from "@/components/PlayingCard";
 import { usePlayer } from "@/components/PlayerProvider";
 import { TableChat } from "@/components/TableChat";
 import { feltCss } from "@/lib/felt";
 import type { BotDifficulty, FeltAccent, PublicRoom, Street } from "@/lib/types";
 
-/** Tighter oval — seats closer to the felt, less empty ring. */
 const SEAT_POS = [
-  { top: "86%", left: "50%" },
-  { top: "72%", left: "86%" },
-  { top: "48%", left: "94%" },
-  { top: "24%", left: "86%" },
-  { top: "12%", left: "50%" },
-  { top: "24%", left: "14%" },
-  { top: "48%", left: "6%" },
-  { top: "72%", left: "14%" },
-  { top: "90%", left: "72%" },
-  { top: "90%", left: "28%" },
-];
-
-const BOT_LEVELS: { value: BotDifficulty; label: string }[] = [
-  { value: "easy", label: "Iniciante" },
-  { value: "medium", label: "Médio" },
-  { value: "hard", label: "Difícil" },
+  { top: "88%", left: "50%" },
+  { top: "74%", left: "88%" },
+  { top: "48%", left: "96%" },
+  { top: "22%", left: "88%" },
+  { top: "8%", left: "50%" },
+  { top: "22%", left: "12%" },
+  { top: "48%", left: "4%" },
+  { top: "74%", left: "12%" },
+  { top: "92%", left: "74%" },
+  { top: "92%", left: "26%" },
 ];
 
 const BOT_SHORT: Record<BotDifficulty, string> = {
@@ -63,6 +58,8 @@ export function TableView({ code }: { code: string }) {
   const [potBump, setPotBump] = useState(0);
   const [botDifficulty, setBotDifficulty] = useState<BotDifficulty>("medium");
   const [feltAccent, setFeltAccent] = useState<FeltAccent>("olive");
+  const [hostOpen, setHostOpen] = useState(false);
+  const [raiseOpen, setRaiseOpen] = useState(false);
   const wasMyTurn = useRef(false);
   const joinStarted = useRef(false);
 
@@ -71,13 +68,14 @@ export function TableView({ code }: { code: string }) {
       setFeltAccent(player.guest.feltAccent);
       return;
     }
+    if (player.mode !== "google") return;
     fetch("/api/profile")
       .then((r) => (r.ok ? r.json() : null))
       .then((d) => {
         if (d?.profile?.feltAccent) setFeltAccent(d.profile.feltAccent);
       })
       .catch(() => {});
-  }, [player.guest?.feltAccent]);
+  }, [player.guest?.feltAccent, player.mode]);
 
   const applyRoom = useCallback((r: PublicRoom) => {
     if (typeof r.serverNow === "number") {
@@ -103,29 +101,35 @@ export function TableView({ code }: { code: string }) {
   );
 
   const refresh = useCallback(async () => {
-    if (!playerId || fatal) return;
+    if (!playerId || fatal || player.mode === "loading" || player.mode === "none") return;
     const res = await fetch(`/api/rooms/${code}`);
     if (!res.ok) {
       if (res.status === 404) {
-        leaveMissingRoom("Sala não encontrada (pode ter expirado ou o Redis não persistiu).");
+        leaveMissingRoom("Sala encerrada ou não encontrada.");
         return;
       }
       if (res.status === 401) {
-        setFatal(true);
-        setError("Faça login com Google");
+        setError("Sessão expirada — faça login de novo na home.");
         return;
       }
       const data = await res.json().catch(() => ({}));
-      setError(data.error ?? "Erro ao atualizar a sala");
+      setError(data.error ?? "Erro ao atualizar");
       return;
     }
     const data = await res.json();
     applyRoom(data.room as PublicRoom);
-  }, [code, playerId, fatal, leaveMissingRoom, applyRoom]);
+  }, [code, playerId, fatal, player.mode, leaveMissingRoom, applyRoom]);
 
   useEffect(() => {
-    if (!playerId || player.mode === "loading" || player.mode === "none" || joinStarted.current || fatal)
+    if (
+      !playerId ||
+      player.mode === "loading" ||
+      player.mode === "none" ||
+      joinStarted.current ||
+      fatal
+    ) {
       return;
+    }
     joinStarted.current = true;
     const nick = player.name.slice(0, 16) || "Jogador";
     (async () => {
@@ -137,16 +141,12 @@ export function TableView({ code }: { code: string }) {
       const data = await res.json().catch(() => ({}));
       if (!res.ok) {
         if (res.status === 404) {
-          leaveMissingRoom(
-            data.error ??
-              "Sala não encontrada. Crie de novo — na Vercel o Redis precisa estar configurado.",
-          );
+          leaveMissingRoom(data.error ?? "Sala não encontrada.");
           return;
         }
         if (res.status === 401) {
-          setFatal(true);
-          setError("Faça login ou continue como convidado");
-          router.replace("/?login=1");
+          joinStarted.current = false;
+          setError("Faça login ou continue como convidado.");
           return;
         }
         setFatal(true);
@@ -166,7 +166,6 @@ export function TableView({ code }: { code: string }) {
     fatal,
     leaveMissingRoom,
     applyRoom,
-    router,
   ]);
 
   const myTurn =
@@ -181,11 +180,11 @@ export function TableView({ code }: { code: string }) {
     !!room.players.find((p) => p.seat === room.actingSeat)?.isBot;
 
   useEffect(() => {
-    if (!playerId || fatal || !room) return;
+    if (!playerId || fatal || !room || player.mode === "none") return;
     const ms = myTurn || botActing ? 500 : 1200;
     const t = setInterval(refresh, ms);
     return () => clearInterval(t);
-  }, [playerId, refresh, myTurn, botActing, fatal, room]);
+  }, [playerId, refresh, myTurn, botActing, fatal, room, player.mode]);
 
   useEffect(() => {
     const t = setInterval(() => setNow(Date.now()), 200);
@@ -195,11 +194,14 @@ export function TableView({ code }: { code: string }) {
   useEffect(() => {
     if (myTurn && !wasMyTurn.current) {
       setShowToast(true);
-      const t = setTimeout(() => setShowToast(false), 2200);
+      const t = setTimeout(() => setShowToast(false), 1800);
       wasMyTurn.current = true;
       return () => clearTimeout(t);
     }
-    if (!myTurn) wasMyTurn.current = false;
+    if (!myTurn) {
+      wasMyTurn.current = false;
+      setRaiseOpen(false);
+    }
   }, [myTurn]);
 
   function api(path: string, body: Record<string, unknown>) {
@@ -215,7 +217,7 @@ export function TableView({ code }: { code: string }) {
         setError(data.error ?? "Erro");
         return;
       }
-      setRoom(data.room);
+      if (data.room) setRoom(data.room);
     });
   }
 
@@ -237,9 +239,21 @@ export function TableView({ code }: { code: string }) {
     });
   }
 
+  function closeRoom() {
+    start(async () => {
+      const res = await fetch(`/api/rooms/${code}/close`, { method: "POST" });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        setError(data.error ?? "Não deu pra encerrar");
+        return;
+      }
+      router.replace("/");
+    });
+  }
+
   const timer = useMemo(() => {
     if (!room?.turnDeadline || room.status !== "playing") {
-      return { left: 0, pct: 0, total: room?.turnSeconds ?? 18, thinking: false };
+      return { left: 0, pct: 0, thinking: false };
     }
     const serverAligned = now - clockSkew;
     const leftMs = Math.max(0, room.turnDeadline - serverAligned);
@@ -248,15 +262,39 @@ export function TableView({ code }: { code: string }) {
     return {
       left: Math.ceil(leftMs / 1000),
       pct: Math.min(100, (leftMs / (total * 1000)) * 100),
-      total,
       thinking: actorBot,
     };
   }, [room, now, clockSkew]);
 
-  if (player.mode === "loading" || player.mode === "none") {
+  if (player.mode === "loading") {
     return (
       <div className="flex h-dvh items-center justify-center text-amber-100/70">
-        {player.mode === "none" ? "Faça login ou continue como convidado…" : "Entrando na mesa…"}
+        Entrando na mesa…
+      </div>
+    );
+  }
+
+  if (player.mode === "none") {
+    return (
+      <div className="flex h-dvh flex-col items-center justify-center gap-4 px-6 text-center">
+        <p className="text-amber-100/80">Pra entrar na mesa:</p>
+        <button
+          type="button"
+          onClick={() => signIn("google")}
+          className="bg-amber-500 px-6 py-3 text-[#1a1208] hover:bg-amber-400"
+        >
+          Entrar com Google
+        </button>
+        <button
+          type="button"
+          onClick={() => void player.continueAsGuest("Convidado")}
+          className="border border-amber-200/40 px-6 py-3 text-amber-100"
+        >
+          Continuar como convidado
+        </button>
+        <a href="/" className="text-sm text-amber-200/50 hover:text-amber-200">
+          ← Voltar
+        </a>
       </div>
     );
   }
@@ -274,16 +312,18 @@ export function TableView({ code }: { code: string }) {
 
   if (!room) {
     return (
-      <div className="flex h-dvh items-center justify-center text-amber-100/70">
-        Entrando na mesa…
+      <div className="flex h-dvh flex-col items-center justify-center gap-2 text-amber-100/70">
+        <p>Entrando na mesa…</p>
+        {error && <p className="text-sm text-rose-300">{error}</p>}
       </div>
     );
   }
 
   const me = room.players.find((p) => p.id === playerId);
-  const isHost = room.hostId === playerId;
+  const isHost = room.hostId === playerId || player.isAdmin;
   const isSpectator = !!me && (me.busted || (me.chips <= 0 && me.seat === null));
-  const canSit = !!me && !me.busted && me.chips > 0 && me.seat === null && room.status !== "playing";
+  const canSit =
+    !!me && !me.busted && me.chips > 0 && me.seat === null && room.status !== "playing";
   const toCall = me ? Math.max(0, room.currentBet - me.bet) : 0;
   const minRaiseTo =
     room.currentBet === 0 ? room.bigBlind : room.currentBet + room.minRaise;
@@ -291,7 +331,6 @@ export function TableView({ code }: { code: string }) {
   const halfPot = Math.max(minRaiseTo, Math.floor(pot / 2) || room.bigBlind);
   const potBet = Math.max(minRaiseTo, pot || room.bigBlind * 2);
   const allInTo = me ? me.bet + me.chips : 0;
-  const seatedCount = room.players.filter((p) => p.seat !== null && p.chips > 0).length;
   const actingName =
     room.players.find((p) => p.seat === room.actingSeat)?.nickname ?? "…";
   const streetLabel = room.street ? STREET_LABEL[room.street] : null;
@@ -310,79 +349,61 @@ export function TableView({ code }: { code: string }) {
   return (
     <div className="relative flex h-dvh max-h-dvh flex-col overflow-hidden text-amber-50">
       {showToast && myTurn && (
-        <div className="sua-vez-toast pointer-events-none fixed left-1/2 top-16 z-50 -translate-x-1/2 rounded bg-amber-500 px-5 py-2 font-[family-name:var(--font-display)] text-lg text-[#1a1208] shadow-lg">
-          Sua vez, irmão! 🃏
+        <div className="sua-vez-toast pointer-events-none fixed left-1/2 top-14 z-50 -translate-x-1/2 rounded bg-amber-500 px-4 py-1.5 font-[family-name:var(--font-display)] text-base text-[#1a1208] shadow-lg">
+          Sua vez! 🃏
         </div>
       )}
 
-      <header className="relative z-20 flex shrink-0 flex-wrap items-center justify-between gap-2 px-3 py-2 sm:px-6 sm:py-3">
+      <header className="relative z-20 flex shrink-0 items-center justify-between gap-2 px-3 py-1.5 sm:px-4">
         <div className="min-w-0">
-          <p className="font-[family-name:var(--font-display)] text-lg tracking-tight text-amber-300 sm:text-2xl">
+          <p className="font-[family-name:var(--font-display)] text-base tracking-tight text-amber-300 sm:text-lg">
             Poker Friends
           </p>
-          <p className="truncate text-[0.6rem] uppercase tracking-[0.18em] text-amber-200/45 sm:text-[0.65rem] sm:tracking-[0.22em]">
-            Sala {room.code}
+          <p className="truncate text-[0.55rem] uppercase tracking-[0.16em] text-amber-200/45">
+            {room.code}
             {streetLabel ? ` · ${streetLabel}` : ""}
             {room.handNumber > 0 ? ` · #${room.handNumber}` : ""}
+            {" · "}
+            {room.smallBlind}/{room.bigBlind}
+            {sched?.enabled && room.blindsProgress ? ` ↑${room.blindsProgress}` : ""}
           </p>
         </div>
-        <div className="flex flex-col items-end gap-1 text-right text-[0.65rem] text-amber-100/55 sm:text-sm">
-          <div className="flex items-center gap-2">
-            <button
-              type="button"
-              disabled={pending}
-              onClick={leaveTable}
-              title="No meio da mão: fold automático e sai"
-              className="border border-rose-400/35 px-2 py-1 text-[0.65rem] text-rose-100/90 hover:bg-rose-500/10 disabled:opacity-40 sm:text-xs"
-            >
-              Sair da mesa
-            </button>
-            <AuthBar />
-          </div>
-          <p className="tabular-nums">
-            Blinds {room.smallBlind}/{room.bigBlind}
-            {sched?.enabled && room.blindsProgress ? ` · ↑ ${room.blindsProgress}` : ""}
-          </p>
-          <p className="hidden text-[0.6rem] text-amber-100/35 sm:block">
-            Sair no meio da mão = fold e sai
-          </p>
+        <div className="flex items-center gap-2">
+          <button
+            type="button"
+            disabled={pending}
+            onClick={leaveTable}
+            title="Sai só você — a sala continua pros outros"
+            className="border border-rose-400/35 px-2 py-1 text-[0.6rem] text-rose-100/90 hover:bg-rose-500/10"
+          >
+            Sair
+          </button>
+          <AuthBar compact />
         </div>
       </header>
 
-      {isSpectator && !room.tableEnded && (
-        <p className="relative z-20 shrink-0 bg-rose-950/50 px-3 py-1.5 text-center text-xs text-rose-100 sm:text-sm">
-          Você faliu — só assiste até alguém conquistar a mesa. Sem rebuy no meio.
+      {(isSpectator && !room.tableEnded) || room.tableEnded ? (
+        <p className="shrink-0 px-3 py-1 text-center text-[0.7rem] text-amber-100/80">
+          {room.tableEnded
+            ? `🏆 Mesa conquistada${champ ? `: ${champ.nickname}` : ""}. Pode sentar de novo.`
+            : "Você faliu — só assiste até alguém conquistar a mesa."}
         </p>
-      )}
-
-      {room.tableEnded && (
-        <p className="relative z-20 shrink-0 bg-amber-500/20 px-3 py-1.5 text-center text-xs text-amber-100 sm:text-sm">
-          🏆 Mesa encerrada
-          {champ ? `: ${champ.nickname} conquistou!` : "."} Pode sentar de novo.
-        </p>
-      )}
-
-      {room.myHandHint && room.status === "playing" && !me?.folded && me?.seat !== null && (
-        <p className="relative z-20 mx-auto w-full max-w-4xl shrink-0 px-3 text-center text-xs text-amber-100/90 sm:text-sm">
-          Você tem: <strong className="text-amber-300">{room.myHandHint}</strong>
-        </p>
-      )}
+      ) : null}
 
       {room.status === "playing" && room.actingSeat !== null && (
-        <div className="relative z-20 mx-auto w-full max-w-4xl shrink-0 px-3 sm:px-6">
-          <div className="mb-0.5 flex items-center justify-between text-[0.65rem] text-amber-100/70 sm:text-xs">
+        <div className="relative z-20 mx-auto w-full max-w-3xl shrink-0 px-3">
+          <div className="mb-0.5 flex justify-between text-[0.65rem] text-amber-100/70">
             <span>
               {timer.thinking ? "🤔 " : ""}
-              Vez de <strong className="text-amber-200">{actingName}</strong>
-              {myTurn ? " (você)" : timer.thinking ? " — pensando…" : ""}
+              {actingName}
+              {myTurn ? " (você)" : ""}
+              {room.myHandHint && !me?.folded ? ` · ${room.myHandHint}` : ""}
             </span>
-            <span className={!timer.thinking && timer.left <= 5 ? "text-rose-300" : "text-amber-200"}>
-              {timer.left}s
-            </span>
+            <span className={timer.left <= 5 ? "text-rose-300" : ""}>{timer.left}s</span>
           </div>
           <div className="h-1 overflow-hidden rounded-full bg-emerald-950/80">
             <div
-              className={`h-full transition-[width] duration-200 ease-linear ${
+              className={`h-full transition-[width] duration-200 ${
                 timer.left <= 5 ? "bg-rose-400" : "bg-amber-400"
               }`}
               style={{ width: `${timer.pct}%` }}
@@ -391,39 +412,30 @@ export function TableView({ code }: { code: string }) {
         </div>
       )}
 
-      <div className="relative mx-auto flex min-h-0 w-full max-w-6xl flex-1 items-center justify-center px-0 sm:px-2">
-        <div className="relative aspect-[5/4] h-[min(100%,72dvh)] w-full max-w-[min(100%,calc(72dvh*5/4))] sm:aspect-[4/3] sm:h-[min(100%,68dvh)]">
+      {/* Table fills remaining viewport */}
+      <div className="relative mx-auto flex min-h-0 w-full flex-1 items-center justify-center px-0 pb-2 pt-1">
+        <div className="relative h-full max-h-full w-full max-w-[1000px] aspect-[5/4] sm:aspect-[4/3]">
           <div
-            className="absolute inset-[2%] rounded-[48%] border-[8px] shadow-[inset_0_0_80px_rgba(0,0,0,0.4),0_20px_60px_rgba(0,0,0,0.45)] sm:inset-[3%] sm:border-[10px]"
+            className="absolute inset-[1%] rounded-[48%] border-[8px] shadow-[inset_0_0_60px_rgba(0,0,0,0.45)] sm:inset-[2%] sm:border-[10px]"
             style={{
               borderColor: felt.rim,
               background: `radial-gradient(ellipse_at_center,${felt.feltLit} 0%,${felt.felt} 40%,#0f2418 100%)`,
             }}
           >
-            <div className="absolute inset-[4%] rounded-[48%] border border-amber-400/15" />
+            <div className="absolute inset-[3%] rounded-[48%] border border-amber-400/15" />
           </div>
 
-          <div className="absolute left-1/2 top-[40%] z-10 flex w-[94%] -translate-x-1/2 -translate-y-1/2 flex-col items-center gap-1 sm:top-[46%] sm:gap-1.5">
-            <p className="text-[0.6rem] uppercase tracking-[0.25em] text-emerald-200/55 sm:text-[0.65rem]">
+          <div className="absolute left-1/2 top-[42%] z-10 flex w-[94%] -translate-x-1/2 -translate-y-1/2 flex-col items-center gap-1 sm:top-[46%]">
+            <p className="text-[0.6rem] uppercase tracking-[0.25em] text-emerald-200/55">
               {streetLabel ?? "Mesa"}
-            </p>
-            <p className="rounded-full bg-black/45 px-2.5 py-0.5 text-[0.7rem] tabular-nums text-amber-100/90 sm:px-3 sm:py-1 sm:text-sm">
-              Blinds {room.smallBlind}/{room.bigBlind}
-              {sched?.enabled ? (
-                <span className="text-amber-200/70">
-                  {" "}
-                  · ↑ {room.nextSmallBlind}/{room.nextBigBlind}
-                  {room.blindsProgress ? ` (${room.blindsProgress})` : ""}
-                </span>
-              ) : null}
             </p>
             <p
               key={potBump}
-              className="pot-bump rounded-full bg-black/45 px-3 py-1 text-base font-semibold tracking-wide text-amber-200 sm:px-4 sm:py-1.5 sm:text-lg"
+              className="pot-bump rounded-full bg-black/50 px-3 py-1 text-base font-semibold text-amber-200 sm:text-lg"
             >
               Pote {formatChips(room.pot)}
             </p>
-            <div className="flex min-h-[4.25rem] items-center justify-center gap-1 sm:min-h-24 sm:gap-2">
+            <div className="flex min-h-[4.5rem] items-center justify-center gap-1 sm:min-h-28 sm:gap-2">
               {room.community.map((c, i) => (
                 <PlayingCard
                   key={`${room.handNumber}-${i}`}
@@ -434,7 +446,7 @@ export function TableView({ code }: { code: string }) {
               ))}
             </div>
             {room.status === "showdown" && room.winners && (
-              <div className="mt-0.5 max-w-xs rounded bg-amber-500/15 px-2 py-1.5 text-center text-xs text-amber-200 sm:text-sm">
+              <div className="rounded bg-amber-500/15 px-2 py-1 text-center text-xs text-amber-200">
                 {room.winners.map((w) => {
                   const p = room.players.find((x) => x.seat === w.seat);
                   return (
@@ -445,6 +457,11 @@ export function TableView({ code }: { code: string }) {
                   );
                 })}
               </div>
+            )}
+            {room.lastAction && (
+              <p className="max-w-[90%] truncate text-[0.65rem] text-amber-100/50">
+                {room.lastAction}
+              </p>
             )}
           </div>
 
@@ -464,25 +481,23 @@ export function TableView({ code }: { code: string }) {
                 disabled={!empty || !canSit || pending}
                 onClick={() => api("sit", { seat })}
                 style={{ top: pos.top, left: pos.left }}
-                className={`absolute z-20 w-[5.25rem] -translate-x-1/2 -translate-y-1/2 sm:w-[7.25rem] ${
-                  empty && canSit ? "cursor-pointer opacity-70 hover:opacity-100" : "cursor-default"
+                className={`absolute z-20 w-[5.5rem] -translate-x-1/2 -translate-y-1/2 sm:w-32 ${
+                  empty && canSit ? "cursor-pointer opacity-80 hover:opacity-100" : "cursor-default"
                 }`}
               >
                 <div
-                  className={`rounded-lg px-1 py-1 text-center transition sm:px-2 sm:py-1.5 ${
+                  className={`rounded-lg px-1 py-1 text-center sm:px-2 sm:py-1.5 ${
                     isActing
                       ? `bg-amber-500/95 text-emerald-950 ring-2 ring-amber-100 ${isMe ? "seat-your-turn" : ""}`
                       : empty
                         ? "border border-dashed border-emerald-300/25 bg-emerald-950/40 text-emerald-100/50"
                         : p?.folded
                           ? "bg-emerald-950/50 text-emerald-100/40"
-                          : "bg-emerald-950/85 text-amber-50"
+                          : "bg-emerald-950/90 text-amber-50"
                   }`}
                 >
                   {empty ? (
-                    <span className="text-[0.6rem] sm:text-xs">
-                      {canSit ? `Assento ${seat + 1}` : "—"}
-                    </span>
+                    <span className="text-[0.6rem]">{canSit ? `+ ${seat + 1}` : "—"}</span>
                   ) : (
                     <>
                       <p className="truncate text-[0.6rem] font-medium sm:text-xs">
@@ -490,30 +505,22 @@ export function TableView({ code }: { code: string }) {
                         {p.nickname}
                         {p.isBot && p.botDifficulty
                           ? ` · ${BOT_SHORT[p.botDifficulty]}`
-                          : p.isBot
-                            ? " · bot"
-                            : ""}
+                          : ""}
                         {isMe ? " · você" : ""}
                       </p>
                       <p
-                        className="inline-flex items-center gap-1 text-[0.7rem] font-semibold tabular-nums sm:text-sm"
+                        className="text-[0.7rem] font-semibold tabular-nums sm:text-sm"
                         style={{ color: p.chipColor || "#f0b429" }}
                       >
-                        <span
-                          className="inline-block h-2 w-2 rounded-full ring-1 ring-black/30"
-                          style={{ background: p.chipColor || "#f0b429" }}
-                        />
                         {formatChips(p.chips)}
                       </p>
                       {p.bet > 0 && !p.folded && (
-                        <p className="text-[0.55rem] text-amber-100/90 sm:text-[0.6rem]">
-                          aposta {formatChips(p.bet)}
-                        </p>
+                        <p className="text-[0.55rem]">aposta {formatChips(p.bet)}</p>
                       )}
                       {p.folded && <p className="text-[0.55rem]">fold</p>}
                       {p.allIn && !p.folded && <p className="text-[0.55rem]">all-in</p>}
                       {p.holeCount > 0 && (
-                        <div className="mt-0.5 flex justify-center gap-0.5 sm:mt-1 sm:gap-1">
+                        <div className="mt-0.5 flex justify-center gap-0.5 sm:gap-1">
                           {p.hole ? (
                             p.hole.map((c, i) => (
                               <PlayingCard
@@ -532,7 +539,7 @@ export function TableView({ code }: { code: string }) {
                         </div>
                       )}
                       {lastHere && room.lastSeatAction && (
-                        <p className="mt-0.5 truncate text-[0.55rem] font-medium text-amber-300/90">
+                        <p className="mt-0.5 truncate text-[0.55rem] text-amber-300/90">
                           {room.lastSeatAction.label}
                         </p>
                       )}
@@ -541,17 +548,17 @@ export function TableView({ code }: { code: string }) {
                 </div>
                 <div className="absolute -right-1 -top-1 flex gap-0.5">
                   {isDealer && (
-                    <span className="flex h-4 w-4 items-center justify-center rounded-full bg-amber-100 text-[0.5rem] font-bold text-emerald-950 sm:h-5 sm:w-5 sm:text-[0.55rem]">
+                    <span className="flex h-4 w-4 items-center justify-center rounded-full bg-amber-100 text-[0.5rem] font-bold text-emerald-950">
                       D
                     </span>
                   )}
                   {isSb && (
-                    <span className="flex h-4 w-4 items-center justify-center rounded-full bg-sky-200 text-[0.45rem] font-bold text-emerald-950 sm:h-5 sm:w-5 sm:text-[0.5rem]">
+                    <span className="flex h-4 w-4 items-center justify-center rounded-full bg-sky-200 text-[0.45rem] font-bold text-emerald-950">
                       SB
                     </span>
                   )}
                   {isBb && (
-                    <span className="flex h-4 w-4 items-center justify-center rounded-full bg-orange-200 text-[0.45rem] font-bold text-emerald-950 sm:h-5 sm:w-5 sm:text-[0.5rem]">
+                    <span className="flex h-4 w-4 items-center justify-center rounded-full bg-orange-200 text-[0.45rem] font-bold text-emerald-950">
                       BB
                     </span>
                   )}
@@ -562,306 +569,154 @@ export function TableView({ code }: { code: string }) {
         </div>
       </div>
 
-      <TableChat code={code} room={room} onRoom={setRoom} />
+      {error && (
+        <p className="pointer-events-none fixed left-1/2 top-20 z-40 -translate-x-1/2 rounded bg-rose-950/90 px-3 py-1 text-xs text-rose-100">
+          {error}
+        </p>
+      )}
 
-      <footer className="relative z-30 shrink-0 border-t border-amber-900/40 bg-[#1a1208]/95 px-2 py-2 pb-[max(0.5rem,env(safe-area-inset-bottom))] backdrop-blur-md sm:px-6 sm:py-3">
-        {error && <p className="mb-1 text-xs text-rose-300 sm:text-sm">{error}</p>}
-        {room.lastAction && (
-          <p className="mb-1 truncate text-[0.65rem] text-amber-200/70 sm:text-xs">
-            {room.lastAction}
-          </p>
-        )}
-        <div className="mx-auto flex max-w-5xl flex-col gap-1.5 pr-16 sm:gap-2 sm:pr-20">
-          {isHost && room.status !== "playing" && (
-            <div className="flex flex-wrap items-center gap-1.5 sm:gap-2">
-              <label className="flex items-center gap-1 text-[0.65rem] text-emerald-100/60 sm:text-xs">
-                Nível
-                <select
-                  className="border border-emerald-700/50 bg-emerald-950/60 px-1 py-1 text-amber-100"
-                  value={botDifficulty}
-                  disabled={pending}
-                  onChange={(e) => setBotDifficulty(e.target.value as BotDifficulty)}
-                >
-                  {BOT_LEVELS.map((l) => (
-                    <option key={l.value} value={l.value}>
-                      {l.label}
-                    </option>
-                  ))}
-                </select>
-              </label>
-              <button
-                type="button"
-                disabled={pending || seatedCount >= 10}
-                onClick={() =>
-                  api("bots", { action: "add", difficulty: botDifficulty })
-                }
-                className="border border-amber-200/40 px-2.5 py-1.5 text-xs text-amber-100 hover:bg-amber-500/10 disabled:opacity-40 sm:px-3 sm:py-2 sm:text-sm"
-              >
-                Chamar bot
-              </button>
-              {room.players
-                .filter((p) => p.isBot)
-                .map((b) => (
-                  <button
-                    key={b.id}
-                    type="button"
-                    disabled={pending}
-                    onClick={() => api("bots", { action: "remove", botId: b.id })}
-                    className="border border-rose-400/30 px-2 py-1.5 text-[0.65rem] text-rose-200/90 hover:bg-rose-500/10 sm:text-xs"
-                  >
-                    Remover {b.nickname}
-                  </button>
-                ))}
-              <label className="flex items-center gap-1 text-[0.65rem] text-emerald-100/60 sm:text-xs">
-                Timer
-                <select
-                  className="border border-emerald-700/50 bg-emerald-950/60 px-1 py-1 text-amber-100"
-                  value={room.turnSeconds}
-                  disabled={pending}
-                  onChange={(e) => api("settings", { turnSeconds: Number(e.target.value) })}
-                >
-                  {[12, 18, 25, 30].map((s) => (
-                    <option key={s} value={s}>
-                      {s}s
-                    </option>
-                  ))}
-                </select>
-              </label>
-              <label className="flex items-center gap-1 text-[0.65rem] text-emerald-100/60 sm:text-xs">
-                SB
-                <select
-                  className="border border-emerald-700/50 bg-emerald-950/60 px-1 py-1 text-amber-100"
-                  value={room.smallBlind}
-                  disabled={pending}
-                  onChange={(e) => api("settings", { smallBlind: Number(e.target.value) })}
-                >
-                  {[5, 10, 25, 50, 100].map((s) => (
-                    <option key={s} value={s}>
-                      {s}
-                    </option>
-                  ))}
-                </select>
-              </label>
-              <label className="flex items-center gap-1 text-[0.65rem] text-emerald-100/60 sm:text-xs">
-                <input
-                  type="checkbox"
-                  checked={!!sched?.enabled}
-                  disabled={pending}
-                  onChange={(e) =>
-                    api("settings", {
-                      blindSchedule: {
-                        enabled: e.target.checked,
-                        mode: sched?.mode ?? "hands",
-                        every: sched?.every ?? 4,
-                        multiplier: sched?.multiplier ?? 2,
-                      },
-                    })
+      {/* Floating player actions — no fat footer strip */}
+      {canBet && (
+        <div className="pointer-events-none fixed inset-x-0 bottom-[calc(1rem+env(safe-area-inset-bottom))] z-40 flex flex-col items-center gap-2 px-3">
+          {raiseOpen && (
+            <div className="pointer-events-auto flex flex-wrap items-center justify-center gap-1.5 rounded-2xl border border-amber-900/40 bg-[#1a1208]/95 px-3 py-2 shadow-xl backdrop-blur-md">
+              {[
+                { label: "½ pote", amount: Math.min(allInTo, halfPot) },
+                { label: "Pote", amount: Math.min(allInTo, potBet) },
+                { label: "All-in", amount: allInTo },
+              ].map((preset) => (
+                <button
+                  key={preset.label}
+                  type="button"
+                  disabled={
+                    pending || (preset.amount < minRaiseTo && preset.amount < allInTo)
                   }
-                />
-                Blinds sobem
-              </label>
-              {sched?.enabled && (
-                <>
-                  <select
-                    className="border border-emerald-700/50 bg-emerald-950/60 px-1 py-1 text-[0.65rem] text-amber-100 sm:text-xs"
-                    value={sched.mode}
-                    disabled={pending}
-                    onChange={(e) =>
-                      api("settings", {
-                        blindSchedule: {
-                          enabled: true,
-                          mode: e.target.value as "time" | "hands",
-                          every: sched.every,
-                          multiplier: sched.multiplier,
-                        },
-                      })
-                    }
-                  >
-                    <option value="hands">por mãos</option>
-                    <option value="time">por tempo</option>
-                  </select>
-                  <label className="flex items-center gap-1 text-[0.65rem] text-emerald-100/60 sm:text-xs">
-                    a cada
-                    <select
-                      className="border border-emerald-700/50 bg-emerald-950/60 px-1 py-1 text-amber-100"
-                      value={sched.every}
-                      disabled={pending}
-                      onChange={(e) =>
-                        api("settings", {
-                          blindSchedule: {
-                            enabled: true,
-                            mode: sched.mode,
-                            every: Number(e.target.value),
-                            multiplier: sched.multiplier,
-                          },
-                        })
-                      }
-                    >
-                      {(sched.mode === "time" ? [3, 5, 8, 10, 15] : [2, 3, 4, 5, 8, 10]).map(
-                        (n) => (
-                          <option key={n} value={n}>
-                            {n}
-                            {sched.mode === "time" ? " min" : " mãos"}
-                          </option>
-                        ),
-                      )}
-                    </select>
-                  </label>
-                  <label className="flex items-center gap-1 text-[0.65rem] text-emerald-100/60 sm:text-xs">
-                    ×
-                    <select
-                      className="border border-emerald-700/50 bg-emerald-950/60 px-1 py-1 text-amber-100"
-                      value={sched.multiplier}
-                      disabled={pending}
-                      onChange={(e) =>
-                        api("settings", {
-                          blindSchedule: {
-                            enabled: true,
-                            mode: sched.mode,
-                            every: sched.every,
-                            multiplier: Number(e.target.value),
-                          },
-                        })
-                      }
-                    >
-                      {[1.5, 2, 3].map((m) => (
-                        <option key={m} value={m}>
-                          {m}
-                        </option>
-                      ))}
-                    </select>
-                  </label>
-                </>
-              )}
-              <label className="flex items-center gap-1 text-[0.65rem] text-emerald-100/60 sm:text-xs">
-                <input
-                  type="checkbox"
-                  checked={room.autoStartNext}
-                  disabled={pending || room.tableEnded}
-                  onChange={(e) => api("settings", { autoStartNext: e.target.checked })}
-                />
-                Auto mão
-              </label>
+                  onClick={() => {
+                    setBetInput(String(preset.amount));
+                    api("action", {
+                      action: room.currentBet === 0 ? "bet" : "raise",
+                      amount: preset.amount,
+                    });
+                    setRaiseOpen(false);
+                  }}
+                  className="border border-amber-200/30 px-2.5 py-1.5 text-xs text-amber-100 hover:bg-amber-500/15 disabled:opacity-30"
+                >
+                  {preset.label}
+                </button>
+              ))}
+              <input
+                type="number"
+                min={minRaiseTo}
+                max={allInTo}
+                value={betInput}
+                onChange={(e) => setBetInput(e.target.value)}
+                placeholder={`${minRaiseTo}+`}
+                className="w-16 border border-amber-200/30 bg-emerald-950/60 px-2 py-1.5 text-sm outline-none"
+              />
               <button
                 type="button"
-                disabled={pending || seatedCount < 2}
-                onClick={() => api("start", {})}
-                className="bg-amber-500 px-3 py-1.5 text-xs font-medium text-emerald-950 hover:bg-amber-400 disabled:opacity-40 sm:px-4 sm:py-2 sm:text-sm"
+                disabled={pending}
+                onClick={() => {
+                  const amount = Number(betInput) || minRaiseTo;
+                  api("action", {
+                    action: room.currentBet === 0 ? "bet" : "raise",
+                    amount: Math.min(allInTo, Math.max(minRaiseTo, amount)),
+                  });
+                  setRaiseOpen(false);
+                }}
+                className="bg-amber-500 px-3 py-1.5 text-sm font-medium text-emerald-950"
               >
-                {room.tableEnded
-                  ? "Nova mesa"
-                  : room.status === "showdown"
-                    ? "Próxima mão"
-                    : "Iniciar mão"}
+                OK
               </button>
             </div>
           )}
-
-          {canBet && (
-            <>
-              <div className="flex flex-wrap gap-1.5 sm:gap-2">
-                <button
-                  type="button"
-                  disabled={pending}
-                  onClick={() => api("action", { action: "fold" })}
-                  className="min-w-[4rem] border border-rose-400/50 bg-rose-950/30 px-3 py-2.5 text-sm font-medium text-rose-100 active:scale-[0.98] sm:py-3"
-                >
-                  Fold
-                </button>
-                {toCall === 0 ? (
-                  <button
-                    type="button"
-                    disabled={pending}
-                    onClick={() => api("action", { action: "check" })}
-                    className="min-w-[5rem] flex-1 border border-emerald-400/40 bg-emerald-900/40 px-3 py-2.5 text-sm font-medium active:scale-[0.98] sm:py-3"
-                  >
-                    Check
-                  </button>
-                ) : (
-                  <button
-                    type="button"
-                    disabled={pending}
-                    onClick={() => api("action", { action: "call" })}
-                    className="min-w-[5rem] flex-1 border border-emerald-400/40 bg-emerald-900/40 px-3 py-2.5 text-sm font-medium active:scale-[0.98] sm:py-3"
-                  >
-                    Call {formatChips(Math.min(toCall, me?.chips ?? toCall))}
-                  </button>
-                )}
-              </div>
-              <div className="flex flex-wrap items-center gap-1 sm:gap-1.5">
-                {[
-                  { label: "½ pote", amount: Math.min(allInTo, halfPot) },
-                  { label: "Pote", amount: Math.min(allInTo, potBet) },
-                  { label: "All-in", amount: allInTo },
-                ].map((preset) => (
-                  <button
-                    key={preset.label}
-                    type="button"
-                    disabled={
-                      pending || (preset.amount < minRaiseTo && preset.amount < allInTo)
-                    }
-                    onClick={() => {
-                      setBetInput(String(preset.amount));
-                      api("action", {
-                        action: room.currentBet === 0 ? "bet" : "raise",
-                        amount: preset.amount,
-                      });
-                    }}
-                    className="border border-amber-200/25 px-2 py-1 text-[0.65rem] text-amber-100/90 hover:bg-amber-500/10 disabled:opacity-30 sm:px-2.5 sm:py-1.5 sm:text-xs"
-                  >
-                    {preset.label}
-                  </button>
-                ))}
-                <input
-                  type="number"
-                  min={minRaiseTo}
-                  max={allInTo}
-                  value={betInput}
-                  onChange={(e) => setBetInput(e.target.value)}
-                  placeholder={`${minRaiseTo}+`}
-                  className="w-16 border border-amber-200/30 bg-emerald-950/60 px-2 py-1 text-sm outline-none sm:w-20 sm:py-1.5"
-                />
-                <button
-                  type="button"
-                  disabled={pending}
-                  onClick={() => {
-                    const amount = Number(betInput) || minRaiseTo;
-                    api("action", {
-                      action: room.currentBet === 0 ? "bet" : "raise",
-                      amount: Math.min(allInTo, Math.max(minRaiseTo, amount)),
-                    });
-                  }}
-                  className="bg-amber-500/95 px-3 py-1 text-sm font-medium text-emerald-950 hover:bg-amber-400 sm:py-1.5"
-                >
-                  {room.currentBet === 0 ? "Bet" : "Raise"}
-                </button>
-              </div>
-            </>
-          )}
-
-          {!myTurn && room.status === "playing" && !isSpectator && (
-            <p className="text-xs text-emerald-100/50 sm:text-sm">
-              Aguardando {actingName}
-              {timer.left > 0 ? ` · ${timer.left}s` : ""}…
-            </p>
-          )}
-
-          {room.status === "lobby" && canSit && (
-            <p className="text-xs text-emerald-100/60 sm:text-sm">
-              Toque em um assento livre para sentar.
-            </p>
-          )}
-
-          {room.status !== "playing" &&
-            me?.seat !== null &&
-            me?.seat !== undefined &&
-            !isHost && (
-              <p className="text-xs text-emerald-100/60 sm:text-sm">
-                Aguardando o anfitrião…
-              </p>
+          <div className="pointer-events-auto flex items-center gap-2">
+            <button
+              type="button"
+              disabled={pending}
+              onClick={() => api("action", { action: "fold" })}
+              className="h-14 min-w-[4.5rem] rounded-2xl border border-rose-400/50 bg-rose-950/85 px-4 text-sm font-semibold text-rose-50 shadow-lg active:scale-95"
+            >
+              Fold
+            </button>
+            {toCall === 0 ? (
+              <button
+                type="button"
+                disabled={pending}
+                onClick={() => api("action", { action: "check" })}
+                className="h-14 min-w-[5.5rem] rounded-2xl border border-emerald-400/40 bg-emerald-900/90 px-5 text-sm font-semibold shadow-lg active:scale-95"
+              >
+                Check
+              </button>
+            ) : (
+              <button
+                type="button"
+                disabled={pending}
+                onClick={() => api("action", { action: "call" })}
+                className="h-14 min-w-[5.5rem] rounded-2xl border border-emerald-400/40 bg-emerald-900/90 px-5 text-sm font-semibold shadow-lg active:scale-95"
+              >
+                Call {formatChips(Math.min(toCall, me?.chips ?? toCall))}
+              </button>
             )}
+            <button
+              type="button"
+              disabled={pending}
+              onClick={() => setRaiseOpen((v) => !v)}
+              className="h-14 min-w-[4.5rem] rounded-2xl bg-amber-500 px-4 text-sm font-semibold text-emerald-950 shadow-lg active:scale-95"
+            >
+              {room.currentBet === 0 ? "Bet" : "Raise"}
+            </button>
+          </div>
         </div>
-      </footer>
+      )}
+
+      {!myTurn && room.status === "playing" && !isSpectator && (
+        <p className="pointer-events-none fixed bottom-4 left-1/2 z-30 -translate-x-1/2 text-xs text-emerald-100/45">
+          Aguardando {actingName}…
+        </p>
+      )}
+
+      {room.status === "lobby" && canSit && (
+        <p className="pointer-events-none fixed bottom-4 left-1/2 z-30 -translate-x-1/2 text-xs text-emerald-100/55">
+          Toque num assento livre
+        </p>
+      )}
+
+      {room.status !== "playing" &&
+        me?.seat != null &&
+        !isHost && (
+          <p className="pointer-events-none fixed bottom-4 left-1/2 z-30 -translate-x-1/2 text-xs text-emerald-100/55">
+            Aguardando o anfitrião…
+          </p>
+        )}
+
+      {/* Host FAB — left; chat stays bottom-right */}
+      {isHost && (
+        <button
+          type="button"
+          onClick={() => setHostOpen(true)}
+          className="fixed bottom-[calc(5.5rem+env(safe-area-inset-bottom))] left-3 z-40 flex h-12 w-12 items-center justify-center rounded-full bg-[#2a1c0a] text-lg text-amber-300 shadow-lg ring-2 ring-amber-600/40 sm:left-5"
+          aria-label="Menu da mesa"
+          title="Menu anfitrião"
+        >
+          ⚙️
+        </button>
+      )}
+
+      {isHost && (
+        <HostMenu
+          open={hostOpen}
+          onClose={() => setHostOpen(false)}
+          room={room}
+          pending={pending}
+          botDifficulty={botDifficulty}
+          onBotDifficulty={setBotDifficulty}
+          onApi={api}
+          onCloseRoom={closeRoom}
+        />
+      )}
+
+      <TableChat code={code} room={room} onRoom={setRoom} />
     </div>
   );
 }

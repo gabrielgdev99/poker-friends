@@ -110,12 +110,10 @@ Entre mãos, o host ajusta na barra inferior:
 
 Persistido na sala (Redis). O servidor sobe os blinds no `tick` / início de mão. Na mesa: blinds atuais + próximo nível.
 
-### Sair da mesa
+### Sair da mesa ≠ Encerrar mesa
 
-Botão **Sair da mesa** (cabeçalho). Volta ao lobby e remove você da sala.
-
-- **Entre mãos:** sai limpo.
-- **No meio da mão:** **fold automático** e sai (regra segura — sem limbo). Host passa pro próximo humano se você era anfitrião. Sala vazia (só bots) é apagada.
+- **Sair** (cabeçalho): só você sai. Mid-hand = fold + sai. Host passa pro próximo humano. **A sala continua** pros outros (mesmo se só sobrarem bots — limpeza opcional via TTL Redis 24h).
+- **Encerrar mesa** (menu ⚙️ do anfitrião/admin): apaga a sala no Redis pra todo mundo e devolve fichas Google.
 
 ### Mesas ativas (lobby)
 
@@ -188,7 +186,8 @@ Todas as rotas de sala (exceto `GET /api/rooms` health) exigem sessão Google.
 | `POST` | `/api/rooms/:code/chat` | Mensagem / emoji |
 | `GET` | `/api/stats` | Rankings (fichas / mãos / mesas) |
 | `GET` | `/api/rooms/active` | Mesas ativas (lobby) |
-| `POST` | `/api/rooms/:code/leave` | Sair da mesa (fold se mid-hand) |
+| `POST` | `/api/rooms/:code/leave` | Sair (você só; sala permanece) |
+| `POST` | `/api/rooms/:code/close` | Anfitrião/admin: encerrar mesa |
 | `GET/PUT` | `/api/profile` | Apelido / emoji / ficha / feltro |
 | `GET` | `/api/admin/rooms` | Lista salas (admin) |
 | `DELETE` | `/api/admin/rooms/:code` | Fecha/apaga sala (admin) |

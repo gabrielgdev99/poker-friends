@@ -2,10 +2,15 @@ import { NextResponse } from "next/server";
 import { deposit } from "@/lib/bank";
 import { leaveRoom } from "@/lib/poker/engine";
 import { requireUser } from "@/lib/require-user";
-import { deleteRoom, getRoom, saveRoom } from "@/lib/store";
+import { getRoom, saveRoom } from "@/lib/store";
 
 type Ctx = { params: Promise<{ code: string }> };
 
+/**
+ * Player leaves the room. Room ALWAYS stays open for others.
+ * Never deletes the room — use Encerrar mesa for that.
+ * If only bots remain, room stays until host/admin ends it or Redis TTL.
+ */
 export async function POST(_req: Request, ctx: Ctx) {
   const user = await requireUser();
   if (!user) {
@@ -24,7 +29,6 @@ export async function POST(_req: Request, ctx: Ctx) {
     return NextResponse.json({
       ok: true,
       left: true,
-      empty: false,
       chipsReturned: 0,
       bankBalance: null,
     });
@@ -41,25 +45,16 @@ export async function POST(_req: Request, ctx: Ctx) {
       bankBalance = bank.balance;
     }
 
-    if (room.players.length === 0 || room.players.every((p) => p.isBot)) {
-      await deleteRoom(room.code);
-      return NextResponse.json({
-        ok: true,
-        left: true,
-        empty: true,
-        chipsReturned,
-        bankBalance,
-        isGuest: user.isGuest,
-      });
-    }
+    // Always persist — never deleteRoom here
     await saveRoom(room);
+
     return NextResponse.json({
       ok: true,
       left: true,
-      empty: false,
       chipsReturned,
       bankBalance,
       isGuest: user.isGuest,
+      roomStillOpen: true,
     });
   } catch (e) {
     return NextResponse.json(

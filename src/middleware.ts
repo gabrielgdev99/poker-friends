@@ -11,7 +11,6 @@ export default auth((req) => {
     return NextResponse.next();
   }
 
-  // Guest bootstrap always public
   if (pathname === "/api/guest") {
     return NextResponse.next();
   }
@@ -38,22 +37,22 @@ export default auth((req) => {
     return NextResponse.next();
   }
 
+  // /sala/* pages are public to load — client + APIs enforce identity.
+  // This fixes bounce-to-login when session cookie isn't visible to edge yet.
+  if (pathname.startsWith("/sala/")) {
+    return NextResponse.next();
+  }
+
   const guestId = req.cookies.get(GUEST_COOKIE)?.value;
   const hasGuest = isValidGuestId(guestId);
+  const hasIdentity = !!req.auth || hasGuest;
 
-  const needsAuth =
-    pathname.startsWith("/sala/") ||
+  const needsApiAuth =
     pathname.startsWith("/api/rooms") ||
     pathname.startsWith("/api/profile") ||
     pathname.startsWith("/api/bank");
 
-  if (needsAuth && !req.auth && !hasGuest) {
-    if (pathname.startsWith("/sala/")) {
-      const url = req.nextUrl.clone();
-      url.pathname = "/";
-      url.searchParams.set("login", "1");
-      return NextResponse.redirect(url);
-    }
+  if (needsApiAuth && !hasIdentity) {
     return NextResponse.json(
       { error: "Faça login com Google ou continue como convidado" },
       { status: 401 },
