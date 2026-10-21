@@ -1,4 +1,5 @@
 import { RANK_VALUE } from "@/lib/poker/cards";
+import { resetTurnClock } from "@/lib/poker/clock";
 import { applyAction } from "@/lib/poker/engine";
 import type { Card, Player, PlayerAction, Room } from "@/lib/types";
 
@@ -86,6 +87,7 @@ export function advanceBots(room: Room): boolean {
     }
     changed = true;
   }
+  if (changed && room.status === "playing") resetTurnClock(room);
   return changed;
 }
 

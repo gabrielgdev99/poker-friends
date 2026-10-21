@@ -1,4 +1,5 @@
 import { Redis } from "@upstash/redis";
+import { normalizeRoom } from "@/lib/poker/clock";
 import type { Room } from "@/lib/types";
 
 const PREFIX = "poker:room:";
@@ -28,9 +29,10 @@ export async function getRoom(code: string): Promise<Room | null> {
   const r = redis();
   if (r) {
     const data = await r.get<Room>(key);
-    return data ?? null;
+    return data ? normalizeRoom(data) : null;
   }
-  return memory().get(key) ?? null;
+  const mem = memory().get(key);
+  return mem ? normalizeRoom(mem) : null;
 }
 
 export async function saveRoom(room: Room): Promise<void> {

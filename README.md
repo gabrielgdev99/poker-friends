@@ -62,6 +62,7 @@ Abra [http://localhost:3000](http://localhost:3000).
 | `UPSTASH_REDIS_REST_URL` | Produção | Redis REST URL |
 | `UPSTASH_REDIS_REST_TOKEN` | Produção | Redis REST token |
 | `ADMIN_EMAILS` | Opcional | E-mails admin (vírgula). Sem isso: `goncalvesvg1999@gmail.com` |
+| `TURN_SECONDS` | Opcional | Timer padrão por turno (8–60). Default **18**. Host pode mudar na sala. |
 
 Exemplo `.env.local`:
 
@@ -76,6 +77,13 @@ UPSTASH_REDIS_REST_TOKEN=AXxxxx
 ```
 
 Salas no Redis expiram em **24h** (TTL renovado a cada save).
+
+## Mesa / timer
+
+- Timer de decisão **server-side** (Redis): default **18s** (`TURN_SECONDS` ou ajuste do anfitrião: 12/18/25/30).
+- Timeout: **check** se grátis, senão **fold**. Funciona com bots (bots jogam na hora).
+- UX: barra de countdown, “Sua vez!”, presets ½ pote / pote / all-in, marcas D / SB / BB, rua (Pré-flop…).
+- Showdown curto + **Auto próxima mão** (anfitrião pode desligar).
 
 ## Bots (teste solo)
 
