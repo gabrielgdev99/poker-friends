@@ -466,32 +466,60 @@ export function TableView({ code }: { code: string }) {
               {champ ? `${champ.emoji || "🏆"} ${champ.nickname}` : "Fim de mesa"}
             </p>
             <p className="mt-2 text-sm leading-relaxed text-amber-100/65">
-              A paz do Senhor! Quem faliu pode sentar de novo. Mesma sala (
+              A paz do Senhor! Quem faliu pode sentar de novo. Mesma sala{" "}
               <span className="font-mono tracking-widest text-amber-200/80">
                 {room.code}
               </span>
-              ) — não é Encerrar.
+              .
             </p>
             {isHost ? (
-              <button
-                type="button"
-                disabled={pending}
-                onClick={() => api("rematch", {})}
-                className="action-pill mt-4 w-full rounded-full bg-amber-400 py-3 font-[family-name:var(--font-display)] text-lg font-semibold text-[#1a1208] hover:bg-amber-300 disabled:opacity-50"
-              >
-                Jogar de novo
-              </button>
+              <div className="mt-4 flex flex-col gap-2">
+                <button
+                  type="button"
+                  disabled={pending}
+                  onClick={() => api("rematch", {})}
+                  className="action-pill w-full rounded-full bg-amber-400 py-3 font-[family-name:var(--font-display)] text-lg font-semibold text-[#1a1208] hover:bg-amber-300 disabled:opacity-50"
+                >
+                  Jogar de novo
+                </button>
+                <button
+                  type="button"
+                  disabled={pending}
+                  onClick={() => {
+                    if (
+                      typeof window !== "undefined" &&
+                      !window.confirm(
+                        "Encerrar mesa pra todo mundo? A sala some — não é só sair.",
+                      )
+                    ) {
+                      return;
+                    }
+                    closeRoom();
+                  }}
+                  className="action-pill w-full rounded-full border border-rose-400/45 bg-rose-950/50 py-2.5 text-sm font-medium text-rose-100 hover:bg-rose-900/50 disabled:opacity-50"
+                >
+                  Encerrar mesa
+                </button>
+                <p className="text-[0.65rem] text-amber-100/40">
+                  Jogar de novo mantém a sala. Encerrar apaga pra todo mundo.
+                </p>
+              </div>
             ) : (
-              <p className="mt-4 rounded-full bg-white/5 px-3 py-2 text-xs text-amber-100/55">
-                Aguardando o anfitrião dar o{" "}
-                <span className="text-amber-200">Jogar de novo</span>
-                {canSit ? " — toque num assento livre" : ""}.
-              </p>
-            )}
-            {isHost && canSit && (
-              <p className="mt-2 text-[0.65rem] text-amber-100/40">
-                Dica: sente quem precisa, depois toque em Jogar de novo.
-              </p>
+              <div className="mt-4 flex flex-col gap-2">
+                <p className="rounded-full bg-white/5 px-3 py-2 text-xs text-amber-100/55">
+                  Aguardando o anfitrião dar o{" "}
+                  <span className="text-amber-200">Jogar de novo</span>
+                  {canSit ? " — toque num assento livre" : ""}.
+                </p>
+                <button
+                  type="button"
+                  disabled={pending}
+                  onClick={leaveTable}
+                  className="action-pill w-full rounded-full border border-white/15 bg-white/5 py-2.5 text-sm text-amber-100/85 hover:bg-white/10 disabled:opacity-50"
+                >
+                  Voltar ao lobby
+                </button>
+              </div>
             )}
           </div>
         </div>
@@ -594,7 +622,7 @@ export function TableView({ code }: { code: string }) {
                 className="pointer-events-none absolute z-[15] -translate-x-1/2 -translate-y-1/2"
                 style={{ top: off.top, left: off.left }}
               >
-                <ChipStack amount={p.bet} size="sm" />
+                <ChipStack amount={p.bet} size="md" />
               </div>
             );
           })}

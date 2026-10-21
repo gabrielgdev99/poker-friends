@@ -7,8 +7,9 @@
    ═══════════════════════════════════════════════════════════ */
 
 :root {
-  --fc-felt-void: #0a100c;
-  --fc-felt-deep: #122018;
+  /* Felt stays green to the bottom — never hard-cut to pure black */
+  --fc-felt-void: #122a20;
+  --fc-felt-deep: #163528;
   --fc-felt: #1a3d2c;
   --fc-felt-lit: #2d5c42;
   --fc-clay: #8c6a4a;
@@ -20,13 +21,13 @@
   --fc-wood: #3a2818;
   --fc-shadow: rgba(4, 8, 6, 0.55);
 
-  --felt-deep: var(--fc-felt-void);
+  --felt-deep: var(--fc-felt-deep);
   --felt: var(--fc-felt);
   --felt-lit: var(--fc-felt-lit);
   --amber: var(--fc-wax);
   --cream: var(--fc-ink);
   --wood: var(--fc-wood);
-  --background: var(--fc-felt-void);
+  --background: var(--fc-felt-deep);
   --foreground: var(--fc-ink);
 }
 
@@ -107,101 +108,106 @@ body {
   animation: fc-rise 0.75s ease-out 0.12s both;
 }
 
-/* ── Felt & Clay poker chips ── */
+/* ── Casino chips (classic red/blue/green/black + edge spots) ── */
 
 .fc-chip {
-  --fc-chip-body: #8b2e2e;
-  --fc-chip-stripe: #f0d4d0;
-  --fc-chip-face: #5c1e1e;
-  --fc-chip-ink: #fceceb;
+  --fc-chip-body: #dc2626;
+  --fc-chip-stripe: #fef2f2;
+  --fc-chip-face: #991b1b;
+  --fc-chip-ink: #fef2f2;
   position: relative;
   display: inline-flex;
   align-items: center;
   justify-content: center;
   border-radius: 50%;
   flex-shrink: 0;
+  /* Thick edge spots like real clay casino chips */
   background:
-    radial-gradient(circle at 32% 28%, rgba(255, 255, 255, 0.38) 0%, transparent 42%),
-    radial-gradient(circle at 70% 78%, rgba(0, 0, 0, 0.35) 0%, transparent 50%),
+    radial-gradient(circle at 30% 26%, rgba(255, 255, 255, 0.42) 0%, transparent 40%),
+    radial-gradient(circle at 72% 78%, rgba(0, 0, 0, 0.4) 0%, transparent 48%),
     repeating-conic-gradient(
-      from 8deg,
-      var(--fc-chip-stripe) 0deg 11deg,
-      var(--fc-chip-body) 11deg 22deg
+      from 0deg,
+      var(--fc-chip-stripe) 0deg 14deg,
+      var(--fc-chip-body) 14deg 36deg
     );
   box-shadow:
-    inset 0 1.5px 2px rgba(255, 255, 255, 0.35),
-    inset 0 -2px 3px rgba(0, 0, 0, 0.45),
-    0 1px 0 rgba(255, 255, 255, 0.12),
-    0 3px 6px var(--fc-shadow);
+    inset 0 2px 3px rgba(255, 255, 255, 0.4),
+    inset 0 -3px 4px rgba(0, 0, 0, 0.5),
+    0 0 0 1px rgba(0, 0, 0, 0.35),
+    0 2px 0 rgba(0, 0, 0, 0.35),
+    0 4px 8px rgba(0, 0, 0, 0.4);
 }
 
 .fc-chip::before {
   content: "";
   position: absolute;
-  inset: 18%;
+  inset: 16%;
   border-radius: 50%;
   background:
-    radial-gradient(circle at 40% 35%, rgba(255, 255, 255, 0.12), transparent 55%),
+    radial-gradient(circle at 38% 32%, rgba(255, 255, 255, 0.18), transparent 50%),
     var(--fc-chip-face);
   box-shadow:
-    inset 0 1px 2px rgba(0, 0, 0, 0.35),
-    0 0 0 1.5px color-mix(in srgb, var(--fc-chip-stripe) 55%, transparent);
+    inset 0 1px 2px rgba(0, 0, 0, 0.4),
+    0 0 0 2px color-mix(in srgb, var(--fc-chip-stripe) 70%, transparent);
 }
 
 .fc-chip__face {
   position: relative;
   z-index: 1;
   font-family: var(--font-display), Georgia, serif;
-  font-weight: 600;
-  font-size: 0.42em;
+  font-weight: 700;
+  font-size: 0.38em;
   line-height: 1;
-  letter-spacing: -0.02em;
+  letter-spacing: -0.03em;
   color: var(--fc-chip-ink);
-  text-shadow: 0 1px 1px rgba(0, 0, 0, 0.35);
+  text-shadow: 0 1px 1px rgba(0, 0, 0, 0.45);
 }
 
+/* Seat bets — large enough that stripes + denom read on mobile */
 .fc-chip--sm {
-  width: 0.85rem;
-  height: 0.85rem;
-  font-size: 0.85rem;
+  width: 1.35rem;
+  height: 1.35rem;
+  font-size: 1.35rem;
 }
 
 .fc-chip--sm::before {
-  inset: 22%;
-  box-shadow: inset 0 1px 1px rgba(0, 0, 0, 0.3), 0 0 0 1px color-mix(in srgb, var(--fc-chip-stripe) 40%, transparent);
+  inset: 18%;
+  box-shadow:
+    inset 0 1px 1px rgba(0, 0, 0, 0.35),
+    0 0 0 1.5px color-mix(in srgb, var(--fc-chip-stripe) 65%, transparent);
 }
 
 .fc-chip--sm .fc-chip__face {
-  font-size: 0.28em;
+  font-size: 0.32em;
 }
 
 .fc-chip--md {
-  width: 1.15rem;
-  height: 1.15rem;
-  font-size: 1.15rem;
+  width: 1.55rem;
+  height: 1.55rem;
+  font-size: 1.55rem;
 }
 
 .fc-chip--lg {
-  width: 1.65rem;
-  height: 1.65rem;
-  font-size: 1.65rem;
+  width: 1.9rem;
+  height: 1.9rem;
+  font-size: 1.9rem;
 }
 
 @media (min-width: 640px) {
   .fc-chip--sm {
-    width: 1rem;
-    height: 1rem;
-    font-size: 1rem;
+    width: 1.5rem;
+    height: 1.5rem;
+    font-size: 1.5rem;
   }
   .fc-chip--md {
-    width: 1.35rem;
-    height: 1.35rem;
-    font-size: 1.35rem;
+    width: 1.75rem;
+    height: 1.75rem;
+    font-size: 1.75rem;
   }
   .fc-chip--lg {
-    width: 2rem;
-    height: 2rem;
-    font-size: 2rem;
+    width: 2.25rem;
+    height: 2.25rem;
+    font-size: 2.25rem;
   }
 }
 
@@ -248,16 +254,16 @@ body {
 }
 
 .fc-chip-showcase .fc-chip--lg {
-  width: 3.25rem;
-  height: 3.25rem;
-  font-size: 3.25rem;
+  width: 3.5rem;
+  height: 3.5rem;
+  font-size: 3.5rem;
 }
 
 @media (min-width: 640px) {
   .fc-chip-showcase .fc-chip--lg {
-    width: 3.75rem;
-    height: 3.75rem;
-    font-size: 3.75rem;
+    width: 4rem;
+    height: 4rem;
+    font-size: 4rem;
   }
 }
 

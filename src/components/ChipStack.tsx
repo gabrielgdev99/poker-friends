@@ -3,13 +3,12 @@
 import type { CSSProperties } from "react";
 
 /**
- * Felt & Clay — premium clay poker chips.
- * Edge stripes + face denom + stacked depth. Used for pot & seat bets.
+ * Felt & Clay — classic casino chips (red / blue / green / black).
+ * Edge spots + face denom + stacked depth. Shared by pot, seat bets, lobby.
  */
 
 type ChipTone = {
   value: number;
-  /** CSS custom props set on .fc-chip */
   body: string;
   stripe: string;
   face: string;
@@ -17,53 +16,54 @@ type ChipTone = {
   short: string;
 };
 
+/** Classic casino ladder — no brown blobs. */
 const DENOMS: ChipTone[] = [
   {
     value: 500,
-    body: "#5c3d2e",
-    stripe: "#e8d5b5",
-    face: "#3d281c",
-    ink: "#f3e6d0",
-    short: "5C",
+    body: "#6b21a8",
+    stripe: "#f5f0ff",
+    face: "#581c87",
+    ink: "#faf5ff",
+    short: "500",
   },
   {
     value: 100,
-    body: "#1c1c1e",
-    stripe: "#f0ebe3",
-    face: "#0e0e10",
-    ink: "#f5f0e8",
+    body: "#171717",
+    stripe: "#fafafa",
+    face: "#0a0a0a",
+    ink: "#fafafa",
     short: "100",
   },
   {
     value: 25,
-    body: "#1f5c3a",
-    stripe: "#d4e8d8",
-    face: "#143d26",
-    ink: "#e8f5ec",
+    body: "#15803d",
+    stripe: "#f0fdf4",
+    face: "#14532d",
+    ink: "#f0fdf4",
     short: "25",
   },
   {
     value: 10,
-    body: "#1e3a5f",
-    stripe: "#c5d8f0",
-    face: "#132840",
-    ink: "#e8f0fa",
+    body: "#1d4ed8",
+    stripe: "#eff6ff",
+    face: "#1e3a8a",
+    ink: "#eff6ff",
     short: "10",
   },
   {
     value: 5,
-    body: "#8b2e2e",
-    stripe: "#f0d4d0",
-    face: "#5c1e1e",
-    ink: "#fceceb",
+    body: "#dc2626",
+    stripe: "#fef2f2",
+    face: "#991b1b",
+    ink: "#fef2f2",
     short: "5",
   },
   {
     value: 1,
-    body: "#c4b49a",
-    stripe: "#5a4a38",
-    face: "#ebe0cc",
-    ink: "#3a2e22",
+    body: "#e7e5e4",
+    stripe: "#292524",
+    face: "#fafaf9",
+    ink: "#1c1917",
     short: "1",
   },
 ];
@@ -73,7 +73,7 @@ function breakChips(amount: number): { tone: ChipTone; n: number }[] {
   const out: { tone: ChipTone; n: number }[] = [];
   for (const tone of DENOMS) {
     if (left < tone.value) continue;
-    const n = Math.min(7, Math.floor(left / tone.value));
+    const n = Math.min(6, Math.floor(left / tone.value));
     if (n > 0) {
       out.push({ tone, n });
       left -= n * tone.value;
@@ -81,8 +81,8 @@ function breakChips(amount: number): { tone: ChipTone; n: number }[] {
   }
   if (left > 0) {
     const ones = out.find((x) => x.tone.value === 1);
-    if (ones) ones.n = Math.min(7, ones.n + left);
-    else out.push({ tone: DENOMS[DENOMS.length - 1], n: Math.min(7, left) });
+    if (ones) ones.n = Math.min(6, ones.n + left);
+    else out.push({ tone: DENOMS[DENOMS.length - 1], n: Math.min(6, left) });
   }
   return out;
 }
@@ -128,12 +128,13 @@ export function ChipStack({
 }: {
   amount: number;
   size?: "sm" | "md" | "lg";
-  /** Override amount label (e.g. "Pote") */
   label?: string;
 }) {
   if (amount <= 0) return null;
   const stacks = breakChips(amount);
-  const step = size === "lg" ? 4 : size === "sm" ? 2.5 : 3.25;
+  // Vertical step between chips in a stack (px) — thicker = clearer 3D
+  const step = size === "lg" ? 5 : size === "sm" ? 3.5 : 4.25;
+  const baseH = size === "lg" ? 28 : size === "sm" ? 18 : 22;
   const gap = size === "lg" ? "gap-1.5" : "gap-1";
 
   return (
@@ -143,14 +144,14 @@ export function ChipStack({
           <div
             key={tone.value}
             className="relative flex flex-col-reverse items-center"
-            style={{ height: `${n * step + (size === "lg" ? 22 : size === "sm" ? 12 : 16)}px` }}
+            style={{ height: `${(n - 1) * step + baseH}px` }}
           >
             {Array.from({ length: n }).map((_, i) => (
               <span
                 key={i}
                 className="fc-chip-stack__unit"
                 style={{
-                  marginBottom: i === 0 ? 0 : -step * 0.55,
+                  marginBottom: i === 0 ? 0 : -(baseH - step),
                   zIndex: n - i,
                 }}
               >
@@ -160,14 +161,16 @@ export function ChipStack({
           </div>
         ))}
       </div>
-      <span className={`fc-chip-stack__label ${size === "lg" ? "fc-chip-stack__label--lg" : ""}`}>
+      <span
+        className={`fc-chip-stack__label ${size === "lg" ? "fc-chip-stack__label--lg" : ""}`}
+      >
         {label ?? formatAmt(amount)}
       </span>
     </div>
   );
 }
 
-/** Decorative chip row for lobby hero (Felt & Clay). */
+/** Lobby hero — same casino chips as the table. */
 export function ChipShowcase({ className = "" }: { className?: string }) {
   return (
     <div className={`fc-chip-showcase ${className}`} aria-hidden>
@@ -175,7 +178,9 @@ export function ChipShowcase({ className = "" }: { className?: string }) {
         <span
           key={tone.value}
           className="fc-chip-showcase__item"
-          style={{ transform: `translateY(${(i % 2) * 6}px) rotate(${-8 + i * 5}deg)` }}
+          style={{
+            transform: `translateY(${(i % 2) * 6}px) rotate(${-8 + i * 5}deg)`,
+          }}
         >
           <PokerChip tone={tone} size="lg" showFace />
         </span>
@@ -184,7 +189,6 @@ export function ChipShowcase({ className = "" }: { className?: string }) {
   );
 }
 
-/** Offset chip bet toward table center from a seat. */
 export function seatBetOffset(seat: number): { top: string; left: string } {
   const inward: { top: string; left: string }[] = [
     { top: "72%", left: "50%" },
