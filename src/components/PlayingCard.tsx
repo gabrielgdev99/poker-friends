@@ -7,7 +7,7 @@ export type CardSize = "seat" | "board" | "hero";
 const SIZE: Record<CardSize, string> = {
   seat: "w-[1.85rem] sm:w-9 aspect-[2.5/3.5] text-[0.65rem] sm:text-[0.75rem]",
   board: "w-[2.75rem] sm:w-[3.75rem] aspect-[2.5/3.5] text-xs sm:text-base",
-  hero: "w-[3.25rem] sm:w-[4.25rem] aspect-[2.5/3.5] text-sm sm:text-base",
+  hero: "w-[2.85rem] sm:w-[4rem] aspect-[2.5/3.5] text-sm sm:text-base",
 };
 
 export function PlayingCard({

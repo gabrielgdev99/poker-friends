@@ -12,17 +12,18 @@ import { TableChat } from "@/components/TableChat";
 import { feltCss } from "@/lib/felt";
 import type { BotDifficulty, FeltAccent, PublicRoom, Street } from "@/lib/types";
 
+/** Seat centers — inset so pods never clip viewport edges. */
 const SEAT_POS = [
-  { top: "88%", left: "50%" },
-  { top: "74%", left: "88%" },
-  { top: "48%", left: "96%" },
-  { top: "22%", left: "88%" },
-  { top: "8%", left: "50%" },
-  { top: "22%", left: "12%" },
-  { top: "48%", left: "4%" },
-  { top: "74%", left: "12%" },
-  { top: "92%", left: "74%" },
-  { top: "92%", left: "26%" },
+  { top: "80%", left: "50%" },
+  { top: "68%", left: "80%" },
+  { top: "48%", left: "88%" },
+  { top: "28%", left: "80%" },
+  { top: "16%", left: "50%" },
+  { top: "28%", left: "20%" },
+  { top: "48%", left: "12%" },
+  { top: "68%", left: "20%" },
+  { top: "84%", left: "68%" },
+  { top: "84%", left: "32%" },
 ];
 
 const BOT_SHORT: Record<BotDifficulty, string> = {
@@ -551,23 +552,25 @@ export function TableView({ code }: { code: string }) {
         </div>
       )}
 
-      {/* Table fills remaining viewport — leave room at bottom for hero cards + FABs */}
+      {/* Table stage — padded safe area; oval scales to fit (no edge clip) */}
       <div
-        className={`relative mx-auto flex min-h-0 w-full flex-1 items-center justify-center px-0 pt-1 ${
-          canBet || (me?.hole && me.hole.length > 0)
-            ? "pb-[7.5rem] sm:pb-32"
-            : "pb-2"
+        className={`table-stage relative mx-auto flex min-h-0 w-full flex-1 items-center justify-center px-3 pt-1 sm:px-5 ${
+          canBet
+            ? "pb-[9.5rem] sm:pb-40"
+            : me?.hole && me.hole.length > 0
+              ? "pb-[6.75rem] sm:pb-28"
+              : "pb-3"
         }`}
       >
-        <div className="relative h-full max-h-full w-full max-w-[1000px] aspect-[5/4] sm:aspect-[4/3]">
+        <div className="table-fit relative aspect-[5/4]">
           <div
-            className="absolute inset-[1%] rounded-[48%] border-[6px] shadow-[inset_0_0_70px_rgba(0,0,0,0.5),0_8px_40px_rgba(0,0,0,0.35)] sm:inset-[2%] sm:border-[8px]"
+            className="absolute inset-[10%] rounded-[48%] border-[5px] shadow-[inset_0_0_50px_rgba(0,0,0,0.5),0_6px_28px_rgba(0,0,0,0.35)] sm:inset-[11%] sm:border-[7px]"
             style={{
               borderColor: felt.rim,
               background: `radial-gradient(ellipse_at_center,${felt.feltLit} 0%,${felt.felt} 42%,#0c1f16 100%)`,
             }}
           >
-            <div className="absolute inset-[3.5%] rounded-[48%] border border-amber-300/10" />
+            <div className="absolute inset-[4%] rounded-[48%] border border-amber-300/10" />
           </div>
 
           <div className="absolute left-1/2 top-[40%] z-10 flex w-[94%] -translate-x-1/2 -translate-y-1/2 flex-col items-center gap-1.5 sm:top-[44%]">
@@ -648,7 +651,7 @@ export function TableView({ code }: { code: string }) {
                 disabled={!empty || !canSit || pending}
                 onClick={() => api("sit", { seat })}
                 style={{ top: pos.top, left: pos.left }}
-                className={`absolute z-20 w-[5.5rem] -translate-x-1/2 -translate-y-1/2 sm:w-[7.25rem] ${
+                className={`absolute z-20 w-[4.6rem] -translate-x-1/2 -translate-y-1/2 sm:w-24 ${
                   empty && canSit ? "cursor-pointer opacity-80 hover:opacity-100" : "cursor-default"
                 }`}
               >
@@ -787,18 +790,18 @@ export function TableView({ code }: { code: string }) {
         </p>
       )}
 
-      {/* Hero hole cards — above FABs, never covered */}
+      {/* Hero hole cards — above FABs, fully inside safe area */}
       {me?.hole && me.hole.length > 0 && (room.status === "playing" || room.status === "showdown") && (
         <div
           className="pointer-events-none fixed left-1/2 z-[38] flex -translate-x-1/2 flex-col items-center gap-1"
           style={{
             bottom: canBet
-              ? "calc(5.5rem + env(safe-area-inset-bottom))"
-              : "calc(1.25rem + env(safe-area-inset-bottom))",
+              ? "calc(5.75rem + env(safe-area-inset-bottom))"
+              : "calc(1.5rem + env(safe-area-inset-bottom))",
           }}
         >
           <div
-            className={`flex gap-1.5 rounded-2xl border border-white/10 bg-[#120e08]/75 px-3 py-2 shadow-2xl backdrop-blur-md ${
+            className={`flex gap-1.5 rounded-2xl border border-white/10 bg-[#120e08]/85 px-2.5 py-1.5 shadow-2xl backdrop-blur-md sm:px-3 sm:py-2 ${
               me.folded ? "seat-folded" : ""
             }`}
           >

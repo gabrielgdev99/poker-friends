@@ -190,17 +190,18 @@ export function ChipShowcase({ className = "" }: { className?: string }) {
 }
 
 export function seatBetOffset(seat: number): { top: string; left: string } {
+  // Nudge bets toward center from inset SEAT_POS
   const inward: { top: string; left: string }[] = [
-    { top: "72%", left: "50%" },
-    { top: "62%", left: "72%" },
-    { top: "48%", left: "78%" },
-    { top: "32%", left: "72%" },
-    { top: "24%", left: "50%" },
-    { top: "32%", left: "28%" },
-    { top: "48%", left: "22%" },
-    { top: "62%", left: "28%" },
-    { top: "74%", left: "62%" },
-    { top: "74%", left: "38%" },
+    { top: "66%", left: "50%" },
+    { top: "58%", left: "68%" },
+    { top: "48%", left: "74%" },
+    { top: "36%", left: "68%" },
+    { top: "30%", left: "50%" },
+    { top: "36%", left: "32%" },
+    { top: "48%", left: "26%" },
+    { top: "58%", left: "32%" },
+    { top: "68%", left: "60%" },
+    { top: "68%", left: "40%" },
   ];
   return inward[seat] ?? { top: "50%", left: "50%" };
 }
