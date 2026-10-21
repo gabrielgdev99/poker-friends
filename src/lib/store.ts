@@ -13,23 +13,79 @@ function memory(): MemoryBag {
   return g.__pokerRooms;
 }
 
-function redis(): Redis | null {
-  const url = process.env.UPSTASH_REDIS_REST_URL;
-  const token = process.env.UPSTASH_REDIS_REST_TOKEN;
+function redisCreds(): { url: string; token: string } | null {
+  const url =
+    process.env.UPSTASH_REDIS_REST_URL?.trim() ||
+    process.env.KV_REST_API_URL?.trim() ||
+    "";
+  const token =
+    process.env.UPSTASH_REDIS_REST_TOKEN?.trim() ||
+    process.env.KV_REST_API_TOKEN?.trim() ||
+    "";
   if (!url || !token) return null;
-  return new Redis({ url, token });
+  return { url, token };
+}
+
+/** Singleton — avoid new client per request. */
+function redis(): Redis | null {
+  const creds = redisCreds();
+  if (!creds) return null;
+  const g = globalThis as unknown as { __pokerRedis?: Redis };
+  if (!g.__pokerRedis) {
+    g.__pokerRedis = new Redis({ url: creds.url, token: creds.token });
+  }
+  return g.__pokerRedis;
 }
 
 export function storeMode(): "redis" | "memory" {
   return redis() ? "redis" : "memory";
 }
 
+export function redisConfigured(): boolean {
+  return redisCreds() !== null;
+}
+
+/** On Vercel, memory store cannot share rooms across instances. */
+export function requirePersistentStore(): void {
+  if (storeMode() === "redis") return;
+  const onVercel = process.env.VERCEL === "1";
+  const force = process.env.REQUIRE_REDIS === "1";
+  if (onVercel || force) {
+    throw new Error(
+      "Redis não configurado. Na Vercel, defina UPSTASH_REDIS_REST_URL e UPSTASH_REDIS_REST_TOKEN (ou KV_REST_API_URL / KV_REST_API_TOKEN) e faça redeploy.",
+    );
+  }
+}
+
+function parseRoom(data: unknown): Room | null {
+  if (data == null) return null;
+  let raw: unknown = data;
+  if (typeof raw === "string") {
+    try {
+      raw = JSON.parse(raw);
+    } catch {
+      return null;
+    }
+  }
+  if (typeof raw !== "object" || Array.isArray(raw)) return null;
+  const room = raw as Room;
+  if (!room.code || !Array.isArray(room.players)) return null;
+  return normalizeRoom(room);
+}
+
 export async function getRoom(code: string): Promise<Room | null> {
-  const key = PREFIX + code.toUpperCase();
+  const key = PREFIX + code.toUpperCase().trim();
   const r = redis();
   if (r) {
-    const data = await r.get<Room>(key);
-    return data ? normalizeRoom(data) : null;
+    try {
+      const data = await r.get(key);
+      return parseRoom(data);
+    } catch (e) {
+      console.error("[store] getRoom redis error", key, e);
+      throw new Error(
+        "Falha ao ler a sala no Redis. Verifique as credenciais Upstash na Vercel.",
+      );
+    }
   }
   const mem = memory().get(key);
   return mem ? normalizeRoom(mem) : null;
@@ -37,20 +93,39 @@ export async function getRoom(code: string): Promise<Room | null> {
 
 export async function saveRoom(room: Room): Promise<void> {
   room.updatedAt = Date.now();
-  const code = room.code.toUpperCase();
-  const key = PREFIX + code;
+  room.code = room.code.toUpperCase().trim();
+  const key = PREFIX + room.code;
   const r = redis();
   if (r) {
-    // ponytail: 24h TTL; longer rooms can re-save on activity
-    await r.set(key, room, { ex: 60 * 60 * 24 });
-    await r.sadd(INDEX, code);
+    try {
+      // Explicit JSON — avoids rare double-encode / type quirks across SDK versions
+      await r.set(key, JSON.stringify(room), { ex: 60 * 60 * 24 });
+      await r.sadd(INDEX, room.code);
+    } catch (e) {
+      console.error("[store] saveRoom redis error", key, e);
+      throw new Error(
+        "Falha ao salvar a sala no Redis. Verifique UPSTASH_REDIS_REST_URL / TOKEN na Vercel.",
+      );
+    }
     return;
   }
   memory().set(key, room);
 }
 
+/** Create path: persist + read-back so we never redirect to a missing room. */
+export async function saveRoomVerified(room: Room): Promise<void> {
+  requirePersistentStore();
+  await saveRoom(room);
+  const again = await getRoom(room.code);
+  if (!again) {
+    throw new Error(
+      "Sala não persistiu após salvar. Confira o Redis (Upstash) e tente de novo.",
+    );
+  }
+}
+
 export async function deleteRoom(code: string): Promise<boolean> {
-  const upper = code.toUpperCase();
+  const upper = code.toUpperCase().trim();
   const key = PREFIX + upper;
   const r = redis();
   if (r) {
@@ -70,7 +145,7 @@ export async function listRooms(): Promise<Room[]> {
     for (const code of codes) {
       const room = await getRoom(code);
       if (room) rooms.push(room);
-      else await r.srem(INDEX, code.toUpperCase());
+      else await r.srem(INDEX, String(code).toUpperCase());
     }
     return rooms.sort((a, b) => b.updatedAt - a.updatedAt);
   }

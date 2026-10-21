@@ -21,6 +21,7 @@ export function resetTurnClock(room: Room): void {
 
 /** Fill fields missing from older Redis rooms. */
 export function normalizeRoom(room: Room): Room {
+  if (!Array.isArray(room.players)) room.players = [];
   if (room.turnSeconds == null) room.turnSeconds = defaultTurnSeconds();
   if (room.turnDeadline === undefined) room.turnDeadline = null;
   if (room.autoStartNext == null) room.autoStartNext = true;
@@ -28,6 +29,7 @@ export function normalizeRoom(room: Room): Room {
   if (room.sbSeat === undefined) room.sbSeat = null;
   if (room.bbSeat === undefined) room.bbSeat = null;
   if (room.lastSeatAction === undefined) room.lastSeatAction = null;
+  room.code = String(room.code ?? "").toUpperCase();
   for (const p of room.players) {
     if (p.isBot == null) p.isBot = false;
   }

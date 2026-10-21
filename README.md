@@ -8,7 +8,7 @@ Texas Hold'em cash-style para jogar com amigos. Salas privadas por código curto
 - **Auth.js (NextAuth v5)** + Google OAuth — JWT (sem Postgres para auth)
 - **Persistência de salas:** [Upstash Redis](https://upstash.com) (REST)
 - **Realtime:** polling HTTP ~1,5s (Vercel-friendly)
-- Fallback **in-memory** para salas se Redis não estiver configurado (só local)
+- Fallback **in-memory** só no `npm run dev` local — na Vercel Redis é obrigatório (senão criar sala retorna 503)
 
 ## Como jogar localmente
 
@@ -59,8 +59,9 @@ Abra [http://localhost:3000](http://localhost:3000).
 | `AUTH_GOOGLE_SECRET` | Sim | Google OAuth Client Secret |
 | `AUTH_TRUST_HOST` | Recomendado (`true`) | Necessário na Vercel |
 | `AUTH_URL` | Opcional | Ex.: `http://localhost:3000` |
-| `UPSTASH_REDIS_REST_URL` | Produção | Redis REST URL |
-| `UPSTASH_REDIS_REST_TOKEN` | Produção | Redis REST token |
+| `UPSTASH_REDIS_REST_URL` | **Vercel** | Redis REST URL (obrigatório em produção) |
+| `UPSTASH_REDIS_REST_TOKEN` | **Vercel** | Redis REST token |
+| `KV_REST_API_URL` / `KV_REST_API_TOKEN` | Alternativa | Aliases aceitos (Vercel KV) |
 | `ADMIN_EMAILS` | Opcional | E-mails admin (vírgula). Sem isso: `goncalvesvg1999@gmail.com` |
 | `TURN_SECONDS` | Opcional | Timer padrão por turno (8–60). Default **18**. Host pode mudar na sala. |
 

@@ -13,22 +13,27 @@ export async function POST(req: Request, ctx: Ctx) {
   }
 
   const { code } = await ctx.params;
-  const room = await getRoom(code);
-  if (!room) {
-    return NextResponse.json({ error: "Sala não encontrada" }, { status: 404 });
-  }
-
-  const body = (await req.json().catch(() => ({}))) as { nickname?: string };
-  const nickname = displayNickname(body.nickname, user, "Jogador");
-
   try {
+    const room = await getRoom(code);
+    if (!room) {
+      return NextResponse.json(
+        {
+          error:
+            "Sala não encontrada. Se acabou de criar, o Redis pode não estar configurado na Vercel.",
+        },
+        { status: 404 },
+      );
+    }
+
+    const body = (await req.json().catch(() => ({}))) as { nickname?: string };
+    const nickname = displayNickname(body.nickname, user, "Jogador");
+
     joinRoom(room, user.id, nickname);
     await saveRoom(room);
     return NextResponse.json({ playerId: user.id, room: toPublicRoom(room, user.id) });
   } catch (e) {
-    return NextResponse.json(
-      { error: e instanceof Error ? e.message : "Erro" },
-      { status: 400 },
-    );
+    const msg = e instanceof Error ? e.message : "Erro";
+    const status = msg.includes("Redis") ? 503 : 400;
+    return NextResponse.json({ error: msg }, { status });
   }
 }

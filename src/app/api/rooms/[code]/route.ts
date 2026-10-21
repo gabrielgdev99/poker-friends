@@ -13,10 +13,17 @@ export async function GET(_req: Request, ctx: Ctx) {
   }
 
   const { code } = await ctx.params;
-  const room = await getRoom(code);
-  if (!room) {
-    return NextResponse.json({ error: "Sala não encontrada" }, { status: 404 });
+  try {
+    const room = await getRoom(code);
+    if (!room) {
+      return NextResponse.json({ error: "Sala não encontrada" }, { status: 404 });
+    }
+    if (tickRoom(room)) await saveRoom(room);
+    return NextResponse.json({ room: toPublicRoom(room, user.id) });
+  } catch (e) {
+    return NextResponse.json(
+      { error: e instanceof Error ? e.message : "Erro ao ler sala" },
+      { status: 503 },
+    );
   }
-  if (tickRoom(room)) await saveRoom(room);
-  return NextResponse.json({ room: toPublicRoom(room, user.id) });
 }

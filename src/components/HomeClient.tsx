@@ -24,6 +24,14 @@ export function HomeClient() {
     if (search.get("login") === "1" && status === "unauthenticated") {
       setError("Entre com Google para criar ou entrar em uma sala.");
     }
+    if (search.get("erro") === "sala") {
+      const c = search.get("code");
+      setError(
+        c
+          ? `Sala ${c} não encontrada ou não persistiu. Na Vercel, confira UPSTASH_REDIS_REST_URL e UPSTASH_REDIS_REST_TOKEN, redeploy, e crie de novo.`
+          : "Sala não encontrada. Crie outra ou confira o Redis na Vercel.",
+      );
+    }
   }, [search, status]);
 
   function create() {
@@ -38,10 +46,19 @@ export function HomeClient() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ nickname: nickname || session?.user?.name }),
       });
-      const data = await res.json();
+      const data = await res.json().catch(() => ({}));
       if (!res.ok) {
         setError(data.error ?? "Falha ao criar sala");
         return;
+      }
+      if (!data.room?.code) {
+        setError("Resposta inválida ao criar sala");
+        return;
+      }
+      if (data.store === "memory") {
+        setError(
+          "Aviso: store em memória — a sala pode sumir na Vercel. Configure Upstash Redis.",
+        );
       }
       router.push(`/sala/${data.room.code}`);
     });
@@ -64,7 +81,7 @@ export function HomeClient() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ nickname: nickname || session?.user?.name }),
       });
-      const data = await res.json();
+      const data = await res.json().catch(() => ({}));
       if (!res.ok) {
         setError(data.error ?? "Falha ao entrar");
         return;
