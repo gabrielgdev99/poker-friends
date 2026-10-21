@@ -48,8 +48,8 @@ export function clearGuestLocal(): void {
 export function guestWithdrawLocal(amount: number): GuestLocal | null {
   const g = readGuestLocal();
   if (!g) return null;
-  if (g.bank < amount) return null;
-  g.bank -= amount;
+  // Friends mode: never block the table — floor at 0
+  g.bank = Math.max(0, g.bank - Math.max(0, Math.floor(amount)));
   writeGuestLocal(g);
   return g;
 }
