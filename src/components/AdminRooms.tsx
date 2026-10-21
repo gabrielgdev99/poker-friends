@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useCallback, useEffect, useState, useTransition } from "react";
 
 type AdminPlayer = {
@@ -85,38 +86,36 @@ export function AdminRooms() {
   }
 
   return (
-    <div className="flex flex-col gap-4">
-      <div className="flex flex-wrap items-center gap-3 text-sm text-emerald-100/50">
-        <span>Store: {store || "…"}</span>
-        <span>{rooms.length} sala(s)</span>
+    <div className="pf-stack">
+      <div className="pf-row" style={{ flexWrap: "wrap", justifyContent: "flex-start" }}>
+        <span className="pf-note">Store: {store || "…"}</span>
+        <span className="pf-note">{rooms.length} sala(s)</span>
         <button
           type="button"
           disabled={pending}
           onClick={() => load()}
-          className="text-amber-200/80 underline-offset-2 hover:underline disabled:opacity-50"
+          className="pf-navlink"
+          style={{ background: "none", border: 0, cursor: "pointer" }}
         >
           Atualizar
         </button>
       </div>
 
-      {error && <p className="text-sm text-rose-300">{error}</p>}
+      {error && <p className="pf-error">{error}</p>}
 
       {rooms.length === 0 && !error && (
-        <p className="text-emerald-100/50">Nenhuma sala ativa no momento.</p>
+        <p className="pf-empty">Nenhuma sala ativa no momento.</p>
       )}
 
-      <ul className="flex flex-col gap-4">
+      <ul className="pf-list">
         {rooms.map((r) => (
-          <li
-            key={r.code}
-            className="border border-emerald-700/40 bg-emerald-950/40 px-4 py-4"
-          >
-            <div className="flex flex-wrap items-start justify-between gap-3">
-              <div>
-                <p className="font-mono text-xl tracking-widest text-amber-300">
+          <li key={r.code} className="pf-card">
+            <div className="pf-row pf-row--start" style={{ flexWrap: "wrap" }}>
+              <div className="min-w-0" style={{ flex: "1 1 12rem" }}>
+                <p className="pf-code" style={{ fontSize: "1.15rem" }}>
                   {r.code}
                 </p>
-                <p className="mt-1 text-sm text-emerald-100/70">
+                <p className="pf-note">
                   {r.status}
                   {r.street ? ` · ${r.street}` : ""}
                   {r.handNumber > 0 ? ` · mão #${r.handNumber}` : ""}
@@ -126,37 +125,27 @@ export function AdminRooms() {
                   {" · "}
                   há {ago(r.updatedAt)}
                 </p>
-                {r.lastAction && (
-                  <p className="mt-1 truncate text-xs text-amber-200/60">
-                    {r.lastAction}
-                  </p>
-                )}
+                {r.lastAction && <p className="pf-note pf-ellipsis">{r.lastAction}</p>}
               </div>
-              <div className="flex gap-2">
-                <a
-                  href={`/sala/${r.code}`}
-                  className="border border-amber-200/30 px-3 py-1.5 text-sm text-amber-100 hover:bg-amber-500/10"
-                >
+              <div className="pf-wrap">
+                <Link href={`/sala/${r.code}`} className="pf-btn pf-btn--ghost pf-btn--sm">
                   Abrir
-                </a>
+                </Link>
                 <button
                   type="button"
                   disabled={pending}
                   onClick={() => closeRoom(r.code)}
-                  className="border border-rose-400/40 px-3 py-1.5 text-sm text-rose-200 hover:bg-rose-500/10 disabled:opacity-50"
+                  className="pf-btn pf-btn--danger pf-btn--sm"
                 >
                   Fechar sala
                 </button>
               </div>
             </div>
 
-            <ul className="mt-3 flex flex-col gap-1 border-t border-emerald-800/40 pt-3 text-sm">
+            <ul className="pf-list" style={{ marginTop: "0.7rem" }}>
               {r.players.map((p) => (
-                <li
-                  key={p.id}
-                  className="flex flex-wrap items-center justify-between gap-2 text-emerald-100/80"
-                >
-                  <span>
+                <li key={p.id} className="pf-row" style={{ flexWrap: "wrap" }}>
+                  <span className="pf-note" style={{ color: "var(--fc-ink)" }}>
                     {p.nickname}
                     {p.id === r.hostId ? " · anfitrião" : ""}
                     {p.seat !== null ? ` · assento ${p.seat + 1}` : " · em pé"}
@@ -167,7 +156,8 @@ export function AdminRooms() {
                     type="button"
                     disabled={pending || r.status === "playing"}
                     onClick={() => kick(r.code, p.id, p.nickname)}
-                    className="text-xs text-rose-300/80 hover:text-rose-200 disabled:opacity-30"
+                    className="pf-navlink"
+                    style={{ background: "none", border: 0, cursor: "pointer", color: "#fda4af" }}
                   >
                     Expulsar
                   </button>

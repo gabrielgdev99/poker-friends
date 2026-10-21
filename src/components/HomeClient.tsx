@@ -208,40 +208,33 @@ export function HomeClient({ showcase }: { showcase?: ReactNode }) {
     });
   }
 
-  /* ── Loading ── */
   if (player.mode === "loading") {
     return (
-      <div className="flex flex-1 flex-col justify-end px-6 pb-16 sm:justify-center sm:px-10">
-        <p className="text-sm text-[var(--fc-ink-mute)]">Abrindo a mesa…</p>
+      <div className="pf-gate pf-gate--plain">
+        <p className="pf-note">Abrindo a mesa…</p>
       </div>
     );
   }
 
-  /* ── Logged out: brand-first hero + single CTA pair ── */
   if (player.mode === "none") {
     return (
-      <div className="flex flex-1 flex-col">
-        <div className="flex justify-end px-5 pt-1 sm:px-10">
+      <div className="pf-hero">
+        <div className="pf-hero__nav">
           <AuthBar />
         </div>
-
-        <div className="flex flex-1 flex-col justify-end gap-5 px-6 pb-6 pt-8 sm:justify-center sm:gap-7 sm:px-10 sm:pb-12">
-          <div className="max-w-xl">
-            <h1 className="font-[family-name:var(--font-display)] text-[clamp(3.75rem,15vw,7.5rem)] leading-[0.86] tracking-tight text-[var(--fc-wax)]">
-              Poker Friends
-            </h1>
-            <p className="mt-3 max-w-sm text-base leading-relaxed text-[var(--fc-ink)]/75 sm:mt-4 sm:text-lg">
+        <div className="pf-hero__body">
+          <div>
+            <h1 className="pf-title pf-title--hero">Poker Friends</h1>
+            <p className="pf-lead">
               Hold&apos;em com a galera da igreja. Mesa quente, sem julgamento.
             </p>
           </div>
-
           {showcase}
-
-          <div className="flex w-full max-w-md flex-col gap-2.5">
+          <div className="pf-stack">
             <button
               type="button"
               onClick={() => signIn("google")}
-              className="action-pill w-full rounded-full bg-[var(--fc-wax)] px-6 py-3.5 font-[family-name:var(--font-display)] text-lg font-semibold text-[#1a140c] shadow-[0_8px_28px_rgba(232,184,74,0.28)] transition hover:bg-[var(--fc-wax-hot)]"
+              className="pf-btn pf-btn--wax pf-btn--lg pf-btn--block"
             >
               Entrar com Google
             </button>
@@ -258,49 +251,40 @@ export function HomeClient({ showcase }: { showcase?: ReactNode }) {
                   }
                 });
               }}
-              className="action-pill w-full rounded-full border border-[var(--fc-ink)]/25 bg-transparent px-6 py-3.5 text-[var(--fc-ink)] transition hover:bg-white/5 disabled:opacity-50"
+              className="pf-btn pf-btn--ghost pf-btn--lg pf-btn--block"
             >
               Continuar como convidado
             </button>
-            <p className="text-xs leading-relaxed text-[var(--fc-ink-mute)]">
+            <p className="pf-note">
               Google guarda fichas na nuvem. Convidado fica só neste navegador.
             </p>
           </div>
-
-          {error && <p className="text-sm text-rose-300">{error}</p>}
+          {error && <p className="pf-error">{error}</p>}
         </div>
       </div>
     );
   }
 
-  /* ── Lobby (logged in) ── */
   return (
-    <div className="fc-lobby-in mx-auto flex w-full max-w-lg flex-1 flex-col gap-6 px-5 pb-8 pt-2 sm:px-8 sm:pt-4">
-      <header className="flex items-start justify-between gap-3">
+    <div className="pf-frame pf-rise">
+      <header className="pf-row pf-row--start">
         <div className="min-w-0">
-          <h1 className="font-[family-name:var(--font-display)] text-3xl leading-none tracking-tight text-[var(--fc-wax)] sm:text-4xl">
-            Poker Friends
-          </h1>
-          <p className="mt-1 text-sm text-[var(--fc-ink-mute)]">
-            A paz do Senhor — e boa sorte na mesa.
-          </p>
+          <h1 className="pf-title pf-title--page">Poker Friends</h1>
+          <p className="pf-note">A paz do Senhor — e boa sorte na mesa.</p>
         </div>
         <AuthBar />
       </header>
 
-      {/* Bank */}
-      <section className="fc-lobby-in-delay flex items-center justify-between gap-3 rounded-2xl border border-white/8 bg-black/25 px-4 py-3 backdrop-blur-sm">
-        <div>
-          <p className="text-[0.6rem] uppercase tracking-[0.18em] text-[var(--fc-ink-mute)]">
-            Banco {player.isGuest ? "local" : "na nuvem"}
-          </p>
-          <p className="mt-0.5 font-[family-name:var(--font-display)] text-2xl tabular-nums text-[var(--fc-wax)]">
+      {error && <p className="pf-error">{error}</p>}
+
+      <section className="pf-card pf-row">
+        <div className="min-w-0">
+          <p className="pf-kicker">Banco {player.isGuest ? "local" : "na nuvem"}</p>
+          <p className="pf-bank">
             {player.bankBalance != null
               ? player.bankBalance.toLocaleString("pt-BR")
               : "—"}
-            <span className="ml-1.5 text-sm font-normal text-[var(--fc-ink-mute)]">
-              fichas
-            </span>
+            <span className="pf-note"> fichas</span>
           </p>
         </div>
         {!player.isGuest && (
@@ -313,26 +297,19 @@ export function HomeClient({ showcase }: { showcase?: ReactNode }) {
                 setClaimMsg(err ? err : "+2.500 na conta 🙏");
               });
             }}
-            className="action-pill shrink-0 rounded-full border border-[var(--fc-wax)]/35 bg-[var(--fc-wax)]/10 px-3.5 py-2 text-xs font-medium text-[var(--fc-wax)] hover:bg-[var(--fc-wax)]/20 disabled:opacity-35"
+            className="pf-btn pf-btn--soft pf-btn--sm"
           >
             Recarga diária
           </button>
         )}
       </section>
-      {claimMsg && (
-        <p className="-mt-3 text-xs text-[var(--fc-wax)]/80">{claimMsg}</p>
-      )}
+      {claimMsg && <p className="pf-note">{claimMsg}</p>}
 
-      {/* Identity */}
-      <section className="space-y-3">
-        <label className="flex flex-col gap-1.5">
-          <span className="text-[0.6rem] uppercase tracking-[0.18em] text-[var(--fc-ink-mute)]">
-            Seu apelido
-          </span>
-          <div className="flex items-center gap-2.5 rounded-2xl border border-white/8 bg-black/20 px-3 py-2.5">
-            <span className="text-xl" aria-hidden>
-              {profile?.emoji ?? "🙏"}
-            </span>
+      <section className="pf-stack">
+        <label className="pf-stack">
+          <span className="pf-kicker">Seu apelido</span>
+          <div className="pf-field">
+            <span aria-hidden>{profile?.emoji ?? "🙏"}</span>
             <input
               value={nickname}
               onChange={(e) => setNickname(e.target.value)}
@@ -342,7 +319,6 @@ export function HomeClient({ showcase }: { showcase?: ReactNode }) {
                 }
               }}
               maxLength={16}
-              className="min-w-0 flex-1 bg-transparent text-lg text-[var(--fc-ink)] outline-none placeholder:text-[var(--fc-ink-mute)]"
               placeholder="Como te chamam na mesa"
             />
           </div>
@@ -351,29 +327,24 @@ export function HomeClient({ showcase }: { showcase?: ReactNode }) {
         <button
           type="button"
           onClick={() => setShowStyle((v) => !v)}
-          className="text-xs text-[var(--fc-clay-light)] underline-offset-2 hover:underline"
+          className="pf-navlink"
+          style={{ alignSelf: "flex-start", background: "none", border: 0, cursor: "pointer" }}
         >
           {showStyle ? "Fechar personalização" : "Personalizar emoji, ficha e feltro"}
         </button>
 
         {showStyle && options && (
-          <div className="space-y-4 rounded-2xl border border-white/8 bg-black/20 p-4">
+          <div className="pf-card pf-stack">
             <div>
-              <p className="mb-1.5 text-[0.6rem] uppercase tracking-[0.16em] text-[var(--fc-ink-mute)]">
-                Emoji
-              </p>
-              <div className="flex flex-wrap gap-1" role="group" aria-label="Emoji">
+              <p className="pf-kicker">Emoji</p>
+              <div className="pf-list" style={{ flexDirection: "row", flexWrap: "wrap" }} role="group" aria-label="Emoji">
                 {options.emojis.map((e) => (
                   <button
                     key={e}
                     type="button"
                     onClick={() => saveStyle({ emoji: e })}
                     aria-pressed={profile?.emoji === e}
-                    className={`rounded-lg px-1.5 text-lg ${
-                      profile?.emoji === e
-                        ? "bg-[var(--fc-wax)]/30 ring-1 ring-[var(--fc-wax)]"
-                        : "hover:bg-white/5"
-                    }`}
+                    className="pf-seg"
                   >
                     {e}
                   </button>
@@ -381,42 +352,30 @@ export function HomeClient({ showcase }: { showcase?: ReactNode }) {
               </div>
             </div>
             <div>
-              <p className="mb-1.5 text-[0.6rem] uppercase tracking-[0.16em] text-[var(--fc-ink-mute)]">
-                Cor da ficha
-              </p>
-              <div className="flex flex-wrap gap-2" role="group" aria-label="Cor da ficha">
+              <p className="pf-kicker">Cor da ficha</p>
+              <div className="pf-list" style={{ flexDirection: "row", flexWrap: "wrap" }} role="group" aria-label="Cor da ficha">
                 {options.chipColors.map((c) => (
                   <button
                     key={c}
                     type="button"
                     onClick={() => saveStyle({ chipColor: c })}
                     aria-pressed={profile?.chipColor === c}
-                    className={`h-8 w-8 rounded-full ${
-                      profile?.chipColor === c
-                        ? "ring-2 ring-[var(--fc-wax)] ring-offset-2 ring-offset-[#0a100c]"
-                        : ""
-                    }`}
+                    className="pf-swatch"
                     style={{ background: c }}
                   />
                 ))}
               </div>
             </div>
             <div>
-              <p className="mb-1.5 text-[0.6rem] uppercase tracking-[0.16em] text-[var(--fc-ink-mute)]">
-                Feltro (sua visão)
-              </p>
-              <div className="flex flex-wrap gap-1.5" role="group" aria-label="Feltro">
+              <p className="pf-kicker">Feltro (sua visão)</p>
+              <div className="pf-list" style={{ flexDirection: "row", flexWrap: "wrap" }} role="group" aria-label="Feltro">
                 {options.felts.map((f) => (
                   <button
                     key={f}
                     type="button"
                     onClick={() => saveStyle({ feltAccent: f })}
                     aria-pressed={profile?.feltAccent === f}
-                    className={`rounded-full px-3 py-1.5 text-xs ${
-                      profile?.feltAccent === f
-                        ? "bg-[var(--fc-wax)]/20 text-[var(--fc-wax)] ring-1 ring-[var(--fc-wax)]/50"
-                        : "bg-white/5 text-[var(--fc-ink-mute)] hover:bg-white/8"
-                    }`}
+                    className="pf-seg"
                   >
                     {options.feltLabels[f]}
                   </button>
@@ -427,90 +386,73 @@ export function HomeClient({ showcase }: { showcase?: ReactNode }) {
         )}
       </section>
 
-      {/* Create / join */}
-      <section className="space-y-3">
+      <section className="pf-stack">
         <div>
-          <p className="mb-2 text-[0.6rem] uppercase tracking-[0.18em] text-[var(--fc-ink-mute)]">
-            Assentos na mesa
-          </p>
-          <div className="flex flex-wrap gap-1.5" role="group" aria-label="Máximo de assentos">
+          <p className="pf-kicker">Assentos na mesa</p>
+          <div className="pf-list" style={{ flexDirection: "row", flexWrap: "wrap", marginTop: "0.4rem" }} role="group" aria-label="Máximo de assentos">
             {[2, 3, 4, 5, 6, 7, 8, 9, 10].map((n) => (
               <button
                 key={n}
                 type="button"
                 onClick={() => setMaxSeats(n)}
                 aria-pressed={maxSeats === n}
-                className={`min-w-[2.35rem] rounded-full px-2 py-1.5 text-sm tabular-nums transition ${
-                  maxSeats === n
-                    ? "bg-[var(--fc-wax)] font-semibold text-[#1a140c]"
-                    : "bg-white/5 text-[var(--fc-ink-mute)] hover:bg-white/10"
-                }`}
+                className="pf-seg"
               >
                 {n}
               </button>
             ))}
           </div>
         </div>
-
         <button
           type="button"
           disabled={pending}
           onClick={create}
-          className="action-pill w-full rounded-full bg-[var(--fc-wax)] py-3.5 font-[family-name:var(--font-display)] text-lg font-semibold text-[#1a140c] shadow-[0_8px_24px_rgba(232,184,74,0.22)] hover:bg-[var(--fc-wax-hot)] disabled:opacity-55"
+          className="pf-btn pf-btn--wax pf-btn--lg pf-btn--block"
         >
           Criar mesa
         </button>
-
-        <div className="flex gap-2">
+        <div className="pf-split">
           <input
             value={code}
             onChange={(e) => setCode(e.target.value.toUpperCase())}
             maxLength={6}
             placeholder="CÓDIGO"
-            className="w-[6.5rem] rounded-full border border-white/10 bg-black/30 px-3 py-3 text-center font-mono tracking-[0.2em] text-[var(--fc-ink)] outline-none focus:border-[var(--fc-wax)]/50"
+            className="pf-input pf-input--code"
+            aria-label="Código da sala"
           />
           <button
             type="button"
             disabled={pending}
             onClick={() => join()}
-            className="action-pill flex-1 rounded-full border border-[var(--fc-ink)]/20 py-3 text-[var(--fc-ink)] hover:bg-white/5 disabled:opacity-55"
+            className="pf-btn pf-btn--ghost"
           >
             Entrar com código
           </button>
         </div>
       </section>
 
-      {/* Active tables */}
       <section>
-        <h2 className="mb-3 font-[family-name:var(--font-display)] text-xl text-[var(--fc-ink)]">
+        <h2 className="pf-title" style={{ fontSize: "1.25rem", marginBottom: "0.6rem" }}>
           Mesas ativas
         </h2>
         {rooms.length === 0 ? (
-          <p className="text-sm text-[var(--fc-ink-mute)]">
-            Nenhuma mesa no ar — cria a primeira e chama a galera.
-          </p>
+          <p className="pf-empty">Nenhuma mesa no ar — cria a primeira e chama a galera.</p>
         ) : (
-          <ul className="space-y-2">
+          <ul className="pf-list">
             {rooms.map((r) => (
-              <li
-                key={r.code}
-                className="flex items-center justify-between gap-3 rounded-2xl border border-white/8 bg-black/20 px-3.5 py-3"
-              >
+              <li key={r.code} className="pf-card pf-row">
                 <div className="min-w-0">
-                  <p className="font-mono text-sm tracking-[0.18em] text-[var(--fc-wax)]">
-                    {r.code}
-                  </p>
-                  <p className="truncate text-[0.7rem] text-[var(--fc-ink-mute)]">
+                  <p className="pf-code">{r.code}</p>
+                  <p className="pf-note" style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
                     {STATUS_LABEL[r.status] ?? r.status} · {r.smallBlind}/
-                    {r.bigBlind} · {r.seatedCount}/{r.maxSeats ?? 10} ·{" "}
-                    {r.hostName}
+                    {r.bigBlind} · {r.seatedCount}/{r.maxSeats ?? 10} · {r.hostName}
                   </p>
                 </div>
                 <button
                   type="button"
                   disabled={pending}
                   onClick={() => join(r.code)}
-                  className="action-pill shrink-0 rounded-full bg-[var(--fc-wax)]/90 px-3.5 py-1.5 text-xs font-semibold text-[#1a140c] hover:bg-[var(--fc-wax)]"
+                  className="pf-btn pf-btn--wax pf-btn--sm"
                 >
                   Entrar
                 </button>
@@ -519,8 +461,6 @@ export function HomeClient({ showcase }: { showcase?: ReactNode }) {
           </ul>
         )}
       </section>
-
-      {error && <p className="text-sm text-rose-300">{error}</p>}
     </div>
   );
 }

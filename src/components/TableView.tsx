@@ -318,31 +318,31 @@ export function TableView({ code }: { code: string }) {
 
   if (player.mode === "loading") {
     return (
-      <div className="flex h-dvh items-center justify-center text-amber-100/70">
-        Entrando na mesa…
+      <div className="pf-gate">
+        <p className="pf-note">Entrando na mesa…</p>
       </div>
     );
   }
 
   if (player.mode === "none") {
     return (
-      <div className="flex h-dvh flex-col items-center justify-center gap-4 px-6 text-center">
-        <p className="text-amber-100/80">Pra entrar na mesa:</p>
+      <div className="pf-gate">
+        <p>Pra entrar na mesa:</p>
         <button
           type="button"
           onClick={() => signIn("google")}
-          className="bg-amber-500 px-6 py-3 text-[#1a1208] hover:bg-amber-400"
+          className="pf-btn pf-btn--wax pf-btn--lg"
         >
           Entrar com Google
         </button>
         <button
           type="button"
           onClick={() => void player.continueAsGuest("Convidado")}
-          className="border border-amber-200/40 px-6 py-3 text-amber-100"
+          className="pf-btn pf-btn--ghost pf-btn--lg"
         >
           Continuar como convidado
         </button>
-        <Link href="/" className="text-sm text-amber-200/50 hover:text-amber-200">
+        <Link href="/" className="pf-navlink">
           ← Voltar
         </Link>
       </div>
@@ -351,9 +351,9 @@ export function TableView({ code }: { code: string }) {
 
   if (fatal || (!room && error)) {
     return (
-      <div className="flex h-dvh flex-col items-center justify-center gap-4 px-6 text-center">
-        <p className="text-rose-300">{error ?? "Não foi possível abrir a sala."}</p>
-        <Link href="/" className="bg-amber-500 px-5 py-2.5 text-emerald-950 hover:bg-amber-400">
+      <div className="pf-gate">
+        <p className="pf-error">{error ?? "Não foi possível abrir a sala."}</p>
+        <Link href="/" className="pf-btn pf-btn--wax">
           Voltar ao início
         </Link>
       </div>
@@ -362,9 +362,9 @@ export function TableView({ code }: { code: string }) {
 
   if (!room) {
     return (
-      <div className="flex h-dvh flex-col items-center justify-center gap-2 text-amber-100/70">
-        <p>Entrando na mesa…</p>
-        {error && <p className="text-sm text-rose-300">{error}</p>}
+      <div className="pf-gate">
+        <p className="pf-note">Entrando na mesa…</p>
+        {error && <p className="pf-error">{error}</p>}
       </div>
     );
   }
@@ -428,18 +428,16 @@ export function TableView({ code }: { code: string }) {
       }}
     >
       {showToast && myTurn && (
-        <div className="sua-vez-toast pointer-events-none fixed left-1/2 top-12 z-50 -translate-x-1/2 rounded-full bg-amber-400 px-5 py-1.5 font-[family-name:var(--font-display)] text-base text-[#1a1208] shadow-lg shadow-amber-900/40">
-          Sua vez!
-        </div>
+        <div className="sua-vez-toast pf-toast">Sua vez!</div>
       )}
 
       <header className="relative z-30 flex shrink-0 items-center gap-2 overflow-hidden px-3 py-1.5 sm:px-4">
         <div className="min-w-0 flex-1">
-          <p className="truncate font-[family-name:var(--font-display)] text-base leading-tight tracking-tight text-amber-300 sm:text-lg">
+          <p className="truncate font-[family-name:var(--font-display)] text-base leading-tight tracking-tight text-[var(--fc-wax)] sm:text-lg">
             Poker Friends
           </p>
-          <p className="truncate text-[0.62rem] tracking-wide text-amber-100/50">
-            <span className="font-mono tracking-widest text-amber-200/55">{room.code}</span>
+          <p className="truncate text-[0.62rem] tracking-wide text-[var(--fc-ink-mute)]">
+            <span className="pf-code" style={{ fontSize: "0.62rem" }}>{room.code}</span>
             {streetLabel ? ` · ${streetLabel}` : ""}
             {room.handNumber > 0 ? ` · #${room.handNumber}` : ""}
             {" · "}
@@ -463,27 +461,21 @@ export function TableView({ code }: { code: string }) {
       </header>
 
       {isSpectator && !room.tableEnded ? (
-        <p className="mx-3 shrink-0 rounded-full bg-amber-500/10 px-3 py-1.5 text-center text-[0.7rem] text-amber-100/85">
+        <p className="pf-banner shrink-0">
           Você faliu — só assiste até alguém conquistar a mesa.
         </p>
       ) : null}
 
       {room.tableEnded && (
         <div className="pointer-events-none fixed inset-0 z-[45] flex items-end justify-center bg-black/45 px-4 pb-[calc(5.5rem+env(safe-area-inset-bottom))] pt-24 sm:items-center sm:pb-8">
-          <div className="pointer-events-auto w-full max-w-sm rounded-3xl border border-white/10 bg-[#14100a]/95 p-5 text-center shadow-2xl backdrop-blur-md">
-            <p className="text-[0.65rem] uppercase tracking-[0.22em] text-amber-200/50">
-              Mesa conquistada
-            </p>
-            <p className="mt-2 font-[family-name:var(--font-display)] text-2xl text-amber-300">
+          <div className="pf-modal pointer-events-auto text-center">
+            <p className="pf-kicker">Mesa conquistada</p>
+            <p className="pf-title pf-title--page">
               {champ ? `${champ.emoji || "🏆"} ${champ.nickname}` : "Fim de mesa"}
             </p>
-            <p className="mt-2 text-sm leading-relaxed text-amber-100/65">
+            <p className="pf-lead" style={{ marginInline: "auto" }}>
               A paz do Senhor! Jogar de novo reseata todo mundo (e os bots) com
-              fichas novas na sala{" "}
-              <span className="font-mono tracking-widest text-amber-200/80">
-                {room.code}
-              </span>
-              .
+              fichas novas na sala <span className="pf-code">{room.code}</span>.
             </p>
             {isHost ? (
               <div className="mt-4 flex flex-col gap-2">
@@ -491,7 +483,7 @@ export function TableView({ code }: { code: string }) {
                   type="button"
                   disabled={pending}
                   onClick={() => api("rematch", {})}
-                  className="action-pill w-full rounded-full bg-amber-400 py-3 font-[family-name:var(--font-display)] text-lg font-semibold text-[#1a1208] hover:bg-amber-300 disabled:opacity-50"
+                  className="pf-btn pf-btn--wax pf-btn--lg pf-btn--block"
                 >
                   Jogar de novo
                 </button>
@@ -509,26 +501,25 @@ export function TableView({ code }: { code: string }) {
                     }
                     closeRoom();
                   }}
-                  className="action-pill w-full rounded-full border border-rose-400/45 bg-rose-950/50 py-2.5 text-sm font-medium text-rose-100 hover:bg-rose-900/50 disabled:opacity-50"
+                  className="pf-btn pf-btn--danger pf-btn--block"
                 >
                   Encerrar mesa
                 </button>
-                <p className="text-[0.65rem] text-amber-100/40">
+                <p className="pf-note">
                   De novo = mesma sala, sentados de novo. Encerrar apaga pra todo
                   mundo.
                 </p>
               </div>
             ) : (
               <div className="mt-4 flex flex-col gap-2">
-                <p className="rounded-full bg-white/5 px-3 py-2 text-xs text-amber-100/55">
-                  Aguardando o anfitrião dar o{" "}
-                  <span className="text-amber-200">Jogar de novo</span>.
+                <p className="pf-empty">
+                  Aguardando o anfitrião dar o <span className="pf-code" style={{ letterSpacing: 0 }}>Jogar de novo</span>.
                 </p>
                 <button
                   type="button"
                   disabled={pending}
                   onClick={leaveTable}
-                  className="action-pill w-full rounded-full border border-white/15 bg-white/5 py-2.5 text-sm text-amber-100/85 hover:bg-white/10 disabled:opacity-50"
+                  className="pf-btn pf-btn--ghost pf-btn--block"
                 >
                   Voltar ao lobby
                 </button>
@@ -642,7 +633,7 @@ export function TableView({ code }: { code: string }) {
       </div>
 
       {error && (
-        <p className="pointer-events-none absolute left-1/2 top-14 z-40 -translate-x-1/2 rounded-full bg-rose-950/90 px-4 py-1.5 text-xs text-rose-100 shadow-lg">
+        <p className="pf-toast pf-toast--danger">
           {error}
         </p>
       )}

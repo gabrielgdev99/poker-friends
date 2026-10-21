@@ -9,37 +9,26 @@ export function AuthBar({ compact }: { compact?: boolean }) {
   const player = usePlayer();
 
   if (player.mode === "loading") {
-    return (
-      <p className="text-xs uppercase tracking-[0.2em] text-[var(--fc-ink-mute)]">…</p>
-    );
+    return <p className="pf-kicker">…</p>;
   }
 
   if (player.mode === "none") {
     return (
-      <Link
-        href="/campeoes"
-        className="text-[0.65rem] uppercase tracking-[0.16em] text-[var(--fc-clay-light)] hover:text-[var(--fc-wax)] sm:text-xs"
-      >
+      <Link href="/campeoes" className="pf-navlink">
         Campeões
       </Link>
     );
   }
 
   return (
-    <div className="flex flex-wrap items-center justify-end gap-2 sm:gap-2.5">
+    <div className="pf-row" style={{ flexWrap: "wrap", justifyContent: "flex-end", gap: "0.5rem" }}>
       {!compact && (
-        <Link
-          href="/campeoes"
-          className="text-[0.65rem] uppercase tracking-[0.14em] text-[var(--fc-clay-light)] hover:text-[var(--fc-wax)] sm:text-xs"
-        >
+        <Link href="/campeoes" className="pf-navlink">
           Campeões
         </Link>
       )}
       {player.isAdmin && !compact && (
-        <Link
-          href="/admin"
-          className="text-[0.65rem] uppercase tracking-[0.14em] text-[var(--fc-wax)] hover:text-[var(--fc-wax-hot)] sm:text-xs"
-        >
+        <Link href="/admin" className="pf-navlink" style={{ color: "var(--fc-wax)" }}>
           Admin
         </Link>
       )}
@@ -48,13 +37,11 @@ export function AuthBar({ compact }: { compact?: boolean }) {
         <img
           src={player.image}
           alt=""
-          className="h-7 w-7 rounded-full border border-white/15 object-cover"
+          className="pf-avatar"
           referrerPolicy="no-referrer"
         />
       )}
-      <span className="max-w-[4.2rem] truncate text-xs text-[var(--fc-ink)]/80 sm:max-w-[8rem]">
-        {player.name}
-      </span>
+      <span className={compact ? "pf-name pf-name--tight" : "pf-name"}>{player.name}</span>
       {!compact && (
         <button
           type="button"
@@ -62,7 +49,8 @@ export function AuthBar({ compact }: { compact?: boolean }) {
             if (player.isGuest) void player.exitGuest();
             else void signOut();
           }}
-          className="text-[0.65rem] uppercase tracking-[0.14em] text-[var(--fc-ink-mute)] hover:text-[var(--fc-ink)] sm:text-xs"
+          className="pf-navlink"
+          style={{ background: "none", border: 0, cursor: "pointer", color: "var(--fc-ink-mute)" }}
         >
           Sair
         </button>

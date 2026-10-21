@@ -23,25 +23,24 @@ function Board({
   format: (n: number) => string;
 }) {
   return (
-    <section className="min-w-0">
-      <h2 className="font-[family-name:var(--font-display)] text-xl text-amber-200">
+    <section className="pf-card" style={{ minWidth: 0 }}>
+      <h2 className="pf-title" style={{ fontSize: "1.25rem" }}>
         {title}
       </h2>
-      <p className="mb-3 text-xs text-amber-100/45">{subtitle}</p>
+      <p className="pf-note">{subtitle}</p>
       {rows.length === 0 ? (
-        <p className="text-sm text-amber-100/40">Ainda vazio — joga uma mesa pra entrar.</p>
+        <p className="pf-empty" style={{ marginTop: "0.7rem" }}>
+          Ainda vazio — joga uma mesa pra entrar.
+        </p>
       ) : (
-        <ol className="space-y-1.5">
+        <ol>
           {rows.map((r, i) => (
-            <li
-              key={`${valueKey}-${r.id}`}
-              className="flex items-baseline justify-between gap-3 border-b border-amber-900/25 py-1.5 text-sm"
-            >
-              <span className="min-w-0 truncate">
-                <span className="mr-2 tabular-nums text-amber-200/40">{i + 1}.</span>
-                <span className="text-amber-50/90">{r.nickname}</span>
+            <li key={`${valueKey}-${r.id}`} className="pf-rank">
+              <span style={{ minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                <span className="pf-note">{i + 1}. </span>
+                {r.nickname}
               </span>
-              <span className="shrink-0 tabular-nums font-medium text-amber-300">
+              <span className="pf-code" style={{ letterSpacing: 0, flex: "none" }}>
                 {format(r[valueKey])}
               </span>
             </li>
@@ -74,14 +73,14 @@ export function ChampionsBoard() {
   }, []);
 
   if (error) {
-    return <p className="text-sm text-rose-300">{error}</p>;
+    return <p className="pf-error">{error}</p>;
   }
   if (!boards) {
-    return <p className="text-sm text-amber-100/50">Carregando o quadro…</p>;
+    return <p className="pf-note">Carregando o quadro…</p>;
   }
 
   return (
-    <div className="grid gap-8 sm:grid-cols-3">
+    <div className="pf-boards">
       <Board
         title="Fichas"
         subtitle="Mais fichas ganhas nos potes"

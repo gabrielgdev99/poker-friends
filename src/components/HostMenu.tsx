@@ -44,41 +44,34 @@ export function HostMenu({
   if (!open) return null;
 
   return (
-    <div className="fixed inset-0 z-[60] flex items-end justify-end sm:items-center sm:justify-center">
+    <div className="pf-modal-back">
       <button
         type="button"
-        className="absolute inset-0 bg-black/55"
+        className="absolute inset-0"
         aria-label="Fechar menu"
         onClick={onClose}
       />
-      <div
-        ref={panel}
-        className="relative z-10 flex max-h-[85dvh] w-full max-w-md flex-col overflow-y-auto overscroll-contain rounded-t-3xl border border-white/10 bg-[#14100a]/95 p-4 shadow-2xl backdrop-blur-md sm:rounded-3xl sm:p-5"
-      >
-        <div className="mb-3 flex items-center justify-between">
-          <h2 className="font-[family-name:var(--font-display)] text-xl text-amber-300">
+      <div ref={panel} className="pf-modal">
+        <div className="pf-row">
+          <h2 className="pf-title" style={{ fontSize: "1.35rem" }}>
             Menu da mesa
           </h2>
-          <button
-            type="button"
-            onClick={onClose}
-            className="text-amber-100/50 hover:text-amber-100"
-          >
+          <button type="button" onClick={onClose} className="pf-btn pf-btn--ghost pf-btn--sm" aria-label="Fechar">
             ✕
           </button>
         </div>
-        <p className="mb-4 text-xs text-amber-100/45">
+        <p className="pf-note" style={{ margin: "0.4rem 0 0.9rem" }}>
           Controles do anfitrião — a mesa fica limpa pra você jogar também.
         </p>
 
-        <div className="space-y-4 text-sm">
+        <div className="pf-stack">
           {room.status !== "playing" && (
             <>
               <div className="flex flex-wrap items-center gap-2">
-                <label className="flex items-center gap-1 text-xs text-emerald-100/60">
+                <label className="pf-check">
                   Nível bot
                   <select
-                    className="border border-emerald-700/50 bg-emerald-950/60 px-1 py-1 text-amber-100"
+                    className="pf-select"
                     value={botDifficulty}
                     disabled={pending}
                     onChange={(e) =>
@@ -98,7 +91,7 @@ export function HostMenu({
                   onClick={() =>
                     onApi("bots", { action: "add", difficulty: botDifficulty })
                   }
-                  className="border border-amber-200/40 px-3 py-1.5 text-amber-100 hover:bg-amber-500/10 disabled:opacity-40"
+                  className="pf-btn pf-btn--ghost pf-btn--sm"
                 >
                   Chamar bot
                 </button>
@@ -111,16 +104,16 @@ export function HostMenu({
                     type="button"
                     disabled={pending}
                     onClick={() => onApi("bots", { action: "remove", botId: b.id })}
-                    className="mr-1 border border-rose-400/30 px-2 py-1 text-xs text-rose-200/90"
+                    className="pf-btn pf-btn--danger pf-btn--sm"
                   >
                     Remover {b.nickname}
                   </button>
                 ))}
 
-              <label className="flex items-center gap-2 text-xs text-emerald-100/60">
+              <label className="pf-check">
                 Timer
                 <select
-                  className="border border-emerald-700/50 bg-emerald-950/60 px-1 py-1 text-amber-100"
+                  className="pf-select"
                   value={room.turnSeconds}
                   disabled={pending}
                   onChange={(e) =>
@@ -135,10 +128,10 @@ export function HostMenu({
                 </select>
               </label>
 
-              <label className="flex items-center gap-2 text-xs text-emerald-100/60">
+              <label className="pf-check">
                 SB
                 <select
-                  className="border border-emerald-700/50 bg-emerald-950/60 px-1 py-1 text-amber-100"
+                  className="pf-select"
                   value={room.smallBlind}
                   disabled={pending}
                   onChange={(e) =>
@@ -153,7 +146,7 @@ export function HostMenu({
                 </select>
               </label>
 
-              <label className="flex items-center gap-2 text-xs text-emerald-100/60">
+              <label className="pf-check">
                 <input
                   type="checkbox"
                   checked={!!sched?.enabled}
@@ -172,9 +165,9 @@ export function HostMenu({
                 Blinds sobem
               </label>
               {sched?.enabled && (
-                <div className="flex flex-wrap gap-2">
+                <div className="pf-wrap">
                   <select
-                    className="border border-emerald-700/50 bg-emerald-950/60 px-1 py-1 text-xs text-amber-100"
+                    className="pf-select"
                     value={sched.mode}
                     disabled={pending}
                     onChange={(e) =>
@@ -192,7 +185,7 @@ export function HostMenu({
                     <option value="time">por tempo</option>
                   </select>
                   <select
-                    className="border border-emerald-700/50 bg-emerald-950/60 px-1 py-1 text-xs text-amber-100"
+                    className="pf-select"
                     value={sched.every}
                     disabled={pending}
                     onChange={(e) =>
@@ -216,7 +209,7 @@ export function HostMenu({
                     )}
                   </select>
                   <select
-                    className="border border-emerald-700/50 bg-emerald-950/60 px-1 py-1 text-xs text-amber-100"
+                    className="pf-select"
                     value={sched.multiplier}
                     disabled={pending}
                     onChange={(e) =>
@@ -239,7 +232,7 @@ export function HostMenu({
                 </div>
               )}
 
-              <label className="flex items-center gap-2 text-xs text-emerald-100/60">
+              <label className="pf-check">
                 <input
                   type="checkbox"
                   checked={room.autoStartNext}
@@ -261,7 +254,7 @@ export function HostMenu({
                   onApi(room.tableEnded ? "rematch" : "start", {});
                   onClose();
                 }}
-                className="w-full rounded-full bg-amber-400 py-2.5 font-semibold text-[#1a1208] hover:bg-amber-300 disabled:opacity-40"
+                className="pf-btn pf-btn--wax pf-btn--block"
               >
                 {room.tableEnded
                   ? "Jogar de novo"
@@ -270,7 +263,7 @@ export function HostMenu({
                     : "Iniciar mão"}
               </button>
               {room.tableEnded && (
-                <p className="text-[0.7rem] text-amber-100/45">
+                <p className="pf-note">
                   Mesma sala · fichas novas (buy-in) · quem faliu pode sentar.
                   Encerrar mesa apaga a sala.
                 </p>
@@ -279,13 +272,13 @@ export function HostMenu({
           )}
 
           {room.status === "playing" && (
-            <p className="text-xs text-amber-100/50">
+            <p className="pf-note">
               Ajustes de bots/blinds só entre mãos. Você pode encerrar a qualquer
               hora.
             </p>
           )}
 
-          <hr className="border-amber-900/40" />
+          <hr style={{ border: 0, borderTop: "1px solid rgba(242,235,224,0.12)" }} />
 
           <button
             type="button"
@@ -301,7 +294,7 @@ export function HostMenu({
               }
               onCloseRoom();
             }}
-            className="w-full border border-rose-500/50 bg-rose-950/40 py-2.5 text-rose-100 hover:bg-rose-900/40 disabled:opacity-40"
+            className="pf-btn pf-btn--danger pf-btn--block"
           >
             Encerrar mesa
           </button>
