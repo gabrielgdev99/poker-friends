@@ -253,19 +253,28 @@ export function HostMenu({
 
               <button
                 type="button"
-                disabled={pending || seatedCount < 2}
+                disabled={
+                  pending ||
+                  (room.tableEnded ? false : seatedCount < 2)
+                }
                 onClick={() => {
-                  onApi("start", {});
+                  onApi(room.tableEnded ? "rematch" : "start", {});
                   onClose();
                 }}
-                className="w-full bg-amber-500 py-2.5 font-medium text-emerald-950 hover:bg-amber-400 disabled:opacity-40"
+                className="w-full rounded-full bg-amber-400 py-2.5 font-semibold text-[#1a1208] hover:bg-amber-300 disabled:opacity-40"
               >
                 {room.tableEnded
-                  ? "Nova mesa"
+                  ? "Jogar de novo"
                   : room.status === "showdown"
                     ? "Próxima mão"
                     : "Iniciar mão"}
               </button>
+              {room.tableEnded && (
+                <p className="text-[0.7rem] text-amber-100/45">
+                  Mesma sala · fichas novas (buy-in) · quem faliu pode sentar.
+                  Encerrar mesa apaga a sala.
+                </p>
+              )}
             </>
           )}
 

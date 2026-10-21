@@ -1,3 +1,4 @@
+import { BUY_IN } from "@/lib/bank-constants";
 import { freshDeck, shuffle } from "@/lib/poker/cards";
 import { bestHand, compareHands } from "@/lib/poker/hand-eval";
 import { defaultBlindSchedule, onHandStarting } from "@/lib/poker/blinds";
@@ -11,6 +12,9 @@ import type {
   Street,
   Winner,
 } from "@/lib/types";
+
+/** Fresh stack for a rematch / table restart (same as buy-in). */
+const REMATCH_STACK = BUY_IN;
 
 export const SEAT_CAP = 10;
 export const SEAT_MIN = 2;
@@ -181,15 +185,66 @@ function resolveBustsAndTable(room: Room) {
     room.statsQueue = queue;
   }
   room.lastAction = champ
-    ? `🏆 ${champ.nickname} conquistou a mesa! Quem faliu pode sentar de novo.`
-    : "Mesa encerrada — sentem de novo pra outra.";
-  // Table over: spectators may rejoin with a fresh stack
+    ? `🏆 ${champ.nickname} conquistou a mesa! Quem faliu pode sentar — o anfitrião dá o “Jogar de novo”.`
+    : "Mesa encerrada — o anfitrião pode dar o “Jogar de novo”.";
+  // Table over: spectators may sit again once rematch stacks are ready
   for (const p of room.players) {
     if (p.busted || p.chips <= 0) {
       p.busted = false;
-      p.chips = 1000;
+      p.chips = REMATCH_STACK;
     }
   }
+}
+
+/**
+ * Host rematch: same room code & settings, fresh buy-in stacks, lobby.
+ * Does not delete the room (leave ≠ encerrar). Call startHand after if 2+ seated.
+ */
+export function prepareRematch(room: Room): Room {
+  if (!room.tableEnded) throw new Error("A mesa ainda não acabou");
+
+  room.tableEnded = false;
+  room.championId = null;
+  room.autoStartNext = true;
+  room.status = "lobby";
+  room.winners = null;
+  room.community = [];
+  room.deck = [];
+  room.pot = 0;
+  room.street = null;
+  room.actingSeat = null;
+  room.turnDeadline = null;
+  room.showdownUntil = null;
+  room.sbSeat = null;
+  room.bbSeat = null;
+  room.currentBet = 0;
+  room.lastSeatAction = null;
+
+  // Fresh session blinds (keep schedule prefs: mode/every/multiplier)
+  room.smallBlind = 5;
+  room.bigBlind = 10;
+  room.minRaise = 10;
+  if (room.blindSchedule) {
+    room.blindSchedule.level = 0;
+    room.blindSchedule.levelStartedAt = null;
+    room.blindSchedule.handsAtLevel = 0;
+  }
+
+  for (const p of room.players) {
+    p.busted = false;
+    p.chips = REMATCH_STACK;
+    p.hole = null;
+    p.bet = 0;
+    p.folded = false;
+    p.allIn = false;
+    p.actedThisRound = false;
+    // Keep seats so seated folks stay; busted already have seat=null and can sit
+  }
+
+  room.lastAction =
+    "🙏 Nova rodada na mesma mesa! Sentem (quem faliu também) e o anfitrião inicia.";
+  room.updatedAt = Date.now();
+  return room;
 }
 
 function awardPotTo(room: Room, winners: Player[], handName: string) {
@@ -369,20 +424,9 @@ export function startHand(room: Room, requesterId: string): Room {
   if (requesterId !== room.hostId) throw new Error("Só o anfitrião inicia a mão");
   if (room.status === "playing") throw new Error("Mão em andamento");
 
-  // New table session after a champion — fresh stacks for everyone
+  // Safety: if somehow still marked ended, run rematch prep first
   if (room.tableEnded) {
-    room.tableEnded = false;
-    room.championId = null;
-    room.autoStartNext = true;
-    for (const p of room.players) {
-      p.busted = false;
-      p.chips = 1000;
-      p.hole = null;
-      p.bet = 0;
-      p.folded = false;
-      p.allIn = false;
-      p.actedThisRound = false;
-    }
+    prepareRematch(room);
   }
 
   // Clear showdown → lobby first if needed

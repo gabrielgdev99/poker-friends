@@ -385,7 +385,11 @@ export function TableView({ code }: { code: string }) {
   const isHost = room.hostId === playerId || player.isAdmin;
   const isSpectator = !!me && (me.busted || (me.chips <= 0 && me.seat === null));
   const canSit =
-    !!me && !me.busted && me.chips > 0 && me.seat === null && room.status !== "playing";
+    !!me &&
+    !me.busted &&
+    me.chips > 0 &&
+    me.seat === null &&
+    (room.status !== "playing" || room.tableEnded);
   const toCall = me ? Math.max(0, room.currentBet - me.bet) : 0;
   const minRaiseTo =
     room.currentBet === 0 ? room.bigBlind : room.currentBet + room.minRaise;
@@ -446,13 +450,52 @@ export function TableView({ code }: { code: string }) {
         </div>
       </header>
 
-      {(isSpectator && !room.tableEnded) || room.tableEnded ? (
+      {isSpectator && !room.tableEnded ? (
         <p className="mx-3 shrink-0 rounded-full bg-amber-500/10 px-3 py-1.5 text-center text-[0.7rem] text-amber-100/85">
-          {room.tableEnded
-            ? `🏆 Mesa conquistada${champ ? `: ${champ.nickname}` : ""}. Pode sentar de novo.`
-            : "Você faliu — só assiste até alguém conquistar a mesa."}
+          Você faliu — só assiste até alguém conquistar a mesa.
         </p>
       ) : null}
+
+      {room.tableEnded && (
+        <div className="pointer-events-none fixed inset-0 z-[45] flex items-end justify-center bg-black/45 px-4 pb-[calc(5.5rem+env(safe-area-inset-bottom))] pt-24 sm:items-center sm:pb-8">
+          <div className="pointer-events-auto w-full max-w-sm rounded-3xl border border-white/10 bg-[#14100a]/95 p-5 text-center shadow-2xl backdrop-blur-md">
+            <p className="text-[0.65rem] uppercase tracking-[0.22em] text-amber-200/50">
+              Mesa conquistada
+            </p>
+            <p className="mt-2 font-[family-name:var(--font-display)] text-2xl text-amber-300">
+              {champ ? `${champ.emoji || "🏆"} ${champ.nickname}` : "Fim de mesa"}
+            </p>
+            <p className="mt-2 text-sm leading-relaxed text-amber-100/65">
+              A paz do Senhor! Quem faliu pode sentar de novo. Mesma sala (
+              <span className="font-mono tracking-widest text-amber-200/80">
+                {room.code}
+              </span>
+              ) — não é Encerrar.
+            </p>
+            {isHost ? (
+              <button
+                type="button"
+                disabled={pending}
+                onClick={() => api("rematch", {})}
+                className="action-pill mt-4 w-full rounded-full bg-amber-400 py-3 font-[family-name:var(--font-display)] text-lg font-semibold text-[#1a1208] hover:bg-amber-300 disabled:opacity-50"
+              >
+                Jogar de novo
+              </button>
+            ) : (
+              <p className="mt-4 rounded-full bg-white/5 px-3 py-2 text-xs text-amber-100/55">
+                Aguardando o anfitrião dar o{" "}
+                <span className="text-amber-200">Jogar de novo</span>
+                {canSit ? " — toque num assento livre" : ""}.
+              </p>
+            )}
+            {isHost && canSit && (
+              <p className="mt-2 text-[0.65rem] text-amber-100/40">
+                Dica: sente quem precisa, depois toque em Jogar de novo.
+              </p>
+            )}
+          </div>
+        </div>
+      )}
 
       {room.status === "playing" && room.actingSeat !== null && (
         <div className="relative z-20 mx-auto w-full max-w-lg shrink-0 px-4">
