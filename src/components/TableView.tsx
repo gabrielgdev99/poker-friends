@@ -5,32 +5,14 @@ import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useMemo, useRef, useState, useTransition } from "react";
 import { AuthBar } from "@/components/AuthBar";
 import { ChipStack, seatBetOffset } from "@/components/ChipStack";
+import { CompactSeat } from "@/components/CompactSeat";
 import { HostMenu } from "@/components/HostMenu";
 import { PlayingCard } from "@/components/PlayingCard";
 import { usePlayer } from "@/components/PlayerProvider";
 import { TableChat } from "@/components/TableChat";
 import { feltCss } from "@/lib/felt";
+import { seatRingPositions } from "@/lib/poker/seat-layout";
 import type { BotDifficulty, FeltAccent, PublicRoom, Street } from "@/lib/types";
-
-/** Seat centers — inset so pods never clip viewport edges. */
-const SEAT_POS = [
-  { top: "80%", left: "50%" },
-  { top: "68%", left: "80%" },
-  { top: "48%", left: "88%" },
-  { top: "28%", left: "80%" },
-  { top: "16%", left: "50%" },
-  { top: "28%", left: "20%" },
-  { top: "48%", left: "12%" },
-  { top: "68%", left: "20%" },
-  { top: "84%", left: "68%" },
-  { top: "84%", left: "32%" },
-];
-
-const BOT_SHORT: Record<BotDifficulty, string> = {
-  easy: "Ini",
-  medium: "Méd",
-  hard: "Dif",
-};
 
 const STREET_LABEL: Record<Street, string> = {
   preflop: "Pré-flop",
@@ -39,56 +21,14 @@ const STREET_LABEL: Record<Street, string> = {
   river: "River",
 };
 
+type PreAction = "check" | "fold_check" | "call_any";
+
 /** Seat speech bubble lifetime (ms). */
 const CHAT_BUBBLE_MS = 4500;
 
 function formatChips(n: number) {
   if (n >= 1000) return `${(n / 1000).toFixed(n % 1000 === 0 ? 0 : 1)}k`;
   return String(n);
-}
-
-function SeatAvatar({
-  emoji,
-  avatarUrl,
-  chipColor,
-  acting,
-  folded,
-}: {
-  emoji: string;
-  avatarUrl: string | null;
-  chipColor: string;
-  acting?: boolean;
-  folded?: boolean;
-}) {
-  return (
-    <div
-      className={`relative mx-auto flex h-9 w-9 items-center justify-center overflow-hidden rounded-full border bg-[#0c1a12]/90 shadow-md sm:h-10 sm:w-10 ${
-        folded
-          ? "border-stone-500/40 grayscale"
-          : acting
-            ? "border-amber-200/90 ring-2 ring-amber-300/50"
-            : "border-white/10"
-      }`}
-      style={folded ? undefined : { boxShadow: `0 0 0 1.5px ${chipColor}66` }}
-    >
-      {avatarUrl ? (
-        // eslint-disable-next-line @next/next/no-img-element
-        <img
-          src={avatarUrl}
-          alt=""
-          className={`h-full w-full object-cover ${folded ? "opacity-45" : ""}`}
-          referrerPolicy="no-referrer"
-        />
-      ) : (
-        <span
-          className={`text-lg leading-none sm:text-xl ${folded ? "opacity-40" : ""}`}
-          aria-hidden
-        >
-          {emoji || "🙏"}
-        </span>
-      )}
-    </div>
-  );
 }
 
 export function TableView({ code }: { code: string }) {
@@ -109,7 +49,10 @@ export function TableView({ code }: { code: string }) {
   const [feltAccent, setFeltAccent] = useState<FeltAccent>("olive");
   const [hostOpen, setHostOpen] = useState(false);
   const [raiseOpen, setRaiseOpen] = useState(false);
+  const [preAction, setPreAction] = useState<PreAction | null>(null);
   const wasMyTurn = useRef(false);
+  const preFired = useRef(false);
+  const streetRef = useRef<Street | null>(null);
   const joinStarted = useRef(false);
 
   useEffect(() => {
@@ -250,8 +193,19 @@ export function TableView({ code }: { code: string }) {
     if (!myTurn) {
       wasMyTurn.current = false;
       setRaiseOpen(false);
+      preFired.current = false;
     }
   }, [myTurn]);
+
+  // Clear pre-actions on street change
+  useEffect(() => {
+    const s = room?.street ?? null;
+    if (streetRef.current !== null && streetRef.current !== s) {
+      setPreAction(null);
+      preFired.current = false;
+    }
+    streetRef.current = s;
+  }, [room?.street]);
 
   function api(path: string, body: Record<string, unknown>) {
     setError(null);
@@ -269,6 +223,32 @@ export function TableView({ code }: { code: string }) {
       if (data.room) setRoom(data.room);
     });
   }
+
+  // Apply pre-action when turn starts (works with polling)
+  useEffect(() => {
+    if (!myTurn || !room || !preAction || preFired.current || pending) return;
+    const self = room.players.find((p) => p.id === playerId);
+    if (!self || self.folded || self.allIn) {
+      setPreAction(null);
+      return;
+    }
+    const callAmt = Math.max(0, room.currentBet - self.bet);
+    preFired.current = true;
+    const chosen = preAction;
+    setPreAction(null);
+    if (chosen === "check") {
+      if (callAmt === 0) api("action", { action: "check" });
+      return;
+    }
+    if (chosen === "fold_check") {
+      api("action", { action: callAmt > 0 ? "fold" : "check" });
+      return;
+    }
+    if (chosen === "call_any") {
+      api("action", { action: callAmt > 0 ? "call" : "check" });
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [myTurn, preAction, room?.currentBet, room?.actingSeat, pending]);
 
   function leaveTable() {
     setError(null);
@@ -413,28 +393,41 @@ export function TableView({ code }: { code: string }) {
     : null;
   const felt = feltCss(feltAccent);
   const maxSeats = Math.min(10, Math.max(2, room.maxSeats ?? 10));
+  const seatSlots = seatRingPositions(maxSeats);
+  const showPreActions =
+    !!me &&
+    me.seat !== null &&
+    !me.busted &&
+    !me.folded &&
+    !me.allIn &&
+    room.status === "playing" &&
+    !myTurn;
+
+  function togglePre(next: PreAction) {
+    setPreAction((cur) => (cur === next ? null : next));
+  }
 
   return (
     <div className="relative flex h-dvh max-h-dvh flex-col overflow-hidden bg-[radial-gradient(ellipse_at_top,#1a2e22_0%,#0a100c_55%,#070a08_100%)] text-amber-50">
       {showToast && myTurn && (
-        <div className="sua-vez-toast pointer-events-none fixed left-1/2 top-14 z-50 -translate-x-1/2 rounded-full bg-amber-400 px-5 py-1.5 font-[family-name:var(--font-display)] text-base text-[#1a1208] shadow-lg shadow-amber-900/40">
+        <div className="sua-vez-toast pointer-events-none fixed left-1/2 top-12 z-50 -translate-x-1/2 rounded-full bg-amber-400 px-5 py-1.5 font-[family-name:var(--font-display)] text-base text-[#1a1208] shadow-lg shadow-amber-900/40">
           Sua vez!
         </div>
       )}
 
-      <header className="relative z-20 flex shrink-0 items-center justify-between gap-2 px-3 py-2 sm:px-4">
+      <header className="relative z-20 flex shrink-0 items-center justify-between gap-2 px-3 py-1.5 sm:px-4">
         <div className="min-w-0">
-          <p className="font-[family-name:var(--font-display)] text-lg tracking-tight text-amber-300 sm:text-xl">
+          <p className="font-[family-name:var(--font-display)] text-base tracking-tight text-amber-300 sm:text-lg">
             Poker Friends
           </p>
-          <p className="truncate text-[0.6rem] tracking-wide text-amber-200/40">
+          <p className="truncate text-[0.55rem] tracking-wide text-amber-200/40">
             <span className="font-mono tracking-widest text-amber-200/55">{room.code}</span>
             {streetLabel ? ` · ${streetLabel}` : ""}
             {room.handNumber > 0 ? ` · #${room.handNumber}` : ""}
             {" · "}
             {room.smallBlind}/{room.bigBlind}
-            {` · ${maxSeats} lugares`}
             {sched?.enabled && room.blindsProgress ? ` · ↑ ${room.blindsProgress}` : ""}
+            {!myTurn && room.status === "playing" ? ` · ${actingName}` : ""}
           </p>
         </div>
         <div className="flex items-center gap-2">
@@ -527,66 +520,32 @@ export function TableView({ code }: { code: string }) {
         </div>
       )}
 
-      {room.status === "playing" && room.actingSeat !== null && (
-        <div className="relative z-20 mx-auto w-full max-w-lg shrink-0 px-4">
-          <div className="mb-1 flex justify-between text-[0.65rem] text-amber-100/65">
-            <span className="truncate">
-              {timer.thinking ? "… " : ""}
-              {actingName}
-              {myTurn ? " · você" : ""}
-              {room.myHandHint && !me?.folded ? ` · ${room.myHandHint}` : ""}
-              {me?.folded ? " · fold" : ""}
-            </span>
-            <span className={`tabular-nums ${timer.left <= 5 ? "text-rose-300" : ""}`}>
-              {timer.left}s
-            </span>
-          </div>
-          <div className="h-1 overflow-hidden rounded-full bg-black/35">
-            <div
-              className={`h-full rounded-full transition-[width] duration-200 ${
-                timer.left <= 5 ? "bg-rose-400" : "bg-gradient-to-r from-amber-500 to-amber-300"
-              }`}
-              style={{ width: `${timer.pct}%` }}
-            />
-          </div>
-        </div>
-      )}
-
-      {/* Table stage — padded safe area; oval scales to fit (no edge clip) */}
-      <div
-        className={`table-stage relative mx-auto flex min-h-0 w-full flex-1 items-center justify-center px-3 pt-1 sm:px-5 ${
-          canBet
-            ? "pb-[9.5rem] sm:pb-40"
-            : me?.hole && me.hole.length > 0
-              ? "pb-[6.75rem] sm:pb-28"
-              : "pb-3"
-        }`}
-      >
-        <div className="table-fit relative aspect-[5/4]">
+      {/* Table stage — fills space above bottom dock */}
+      <div className="relative mx-auto min-h-0 w-full max-w-3xl flex-1 px-2 sm:px-4">
+        <div className="absolute inset-1 sm:inset-2">
+          {/* Felt oval — smaller, centered, room for seat ring outside */}
           <div
-            className="absolute inset-[10%] rounded-[48%] border-[5px] shadow-[inset_0_0_50px_rgba(0,0,0,0.5),0_6px_28px_rgba(0,0,0,0.35)] sm:inset-[11%] sm:border-[7px]"
+            className="absolute inset-[18%_14%] rounded-[48%] border-[5px] shadow-[inset_0_0_40px_rgba(0,0,0,0.55)] sm:inset-[16%_12%] sm:border-[6px]"
             style={{
               borderColor: felt.rim,
-              background: `radial-gradient(ellipse_at_center,${felt.feltLit} 0%,${felt.felt} 42%,#0c1f16 100%)`,
+              background: `radial-gradient(ellipse_at_center,${felt.feltLit} 0%,${felt.felt} 45%,#0c1f16 100%)`,
             }}
           >
-            <div className="absolute inset-[4%] rounded-[48%] border border-amber-300/10" />
+            <div className="absolute inset-[5%] rounded-[48%] border border-amber-300/10" />
           </div>
 
-          <div className="absolute left-1/2 top-[40%] z-10 flex w-[94%] -translate-x-1/2 -translate-y-1/2 flex-col items-center gap-1.5 sm:top-[44%]">
-            <p className="rounded-full bg-black/25 px-2.5 py-0.5 text-[0.55rem] uppercase tracking-[0.22em] text-emerald-100/50 backdrop-blur-[2px]">
-              {streetLabel ?? "Mesa"}
-            </p>
+          {/* Pot + board */}
+          <div className="absolute left-1/2 top-[46%] z-10 flex w-[70%] -translate-x-1/2 -translate-y-1/2 flex-col items-center gap-1">
             <div key={potBump} className="pot-bump">
               {room.pot > 0 ? (
-                <ChipStack amount={room.pot} size="lg" label={`Pote ${formatChips(room.pot)}`} />
+                <ChipStack amount={room.pot} size="md" label={`Pote ${formatChips(room.pot)}`} />
               ) : (
-                <span className="rounded-full bg-black/40 px-3 py-1 text-sm text-amber-200/60 backdrop-blur-sm">
+                <span className="rounded-full bg-black/40 px-2.5 py-0.5 text-xs text-amber-200/55">
                   Pote 0
                 </span>
               )}
             </div>
-            <div className="flex min-h-[3.8rem] items-center justify-center gap-1 sm:min-h-[5.25rem] sm:gap-1.5">
+            <div className="flex min-h-[2.75rem] items-center justify-center gap-0.5 sm:min-h-[4rem] sm:gap-1">
               {room.community.map((c, i) => (
                 <PlayingCard
                   key={`${room.handNumber}-${i}`}
@@ -597,7 +556,7 @@ export function TableView({ code }: { code: string }) {
               ))}
             </div>
             {room.status === "showdown" && room.winners && (
-              <div className="rounded-2xl bg-amber-500/15 px-3 py-1.5 text-center text-xs text-amber-100 backdrop-blur-sm">
+              <div className="rounded-xl bg-amber-500/15 px-2 py-1 text-center text-[0.65rem] text-amber-100">
                 {room.winners.map((w) => {
                   const p = room.players.find((x) => x.seat === w.seat);
                   return (
@@ -610,334 +569,226 @@ export function TableView({ code }: { code: string }) {
               </div>
             )}
             {room.lastAction && (
-              <p className="max-w-[88%] truncate rounded-full bg-black/20 px-2.5 py-0.5 text-[0.65rem] text-amber-100/45">
+              <p className="max-w-full truncate text-[0.6rem] text-amber-100/40">
                 {room.lastAction}
               </p>
             )}
+            {room.myHandHint && myTurn && !me?.folded && (
+              <p className="text-[0.6rem] text-amber-200/50">{room.myHandHint}</p>
+            )}
           </div>
 
-          {/* Street bets — chip stacks toward center */}
           {room.players.map((p) => {
             if (p.seat === null || p.bet <= 0 || p.folded) return null;
-            const off = seatBetOffset(p.seat);
+            const off = seatBetOffset(p.seat, maxSeats);
             return (
               <div
                 key={`bet-${p.id}`}
                 className="pointer-events-none absolute z-[15] -translate-x-1/2 -translate-y-1/2"
                 style={{ top: off.top, left: off.left }}
               >
-                <ChipStack amount={p.bet} size="md" />
+                <ChipStack amount={p.bet} size="sm" />
               </div>
             );
           })}
 
-          {SEAT_POS.slice(0, maxSeats).map((pos, seat) => {
+          {seatSlots.map((pos, seat) => {
             const p = room.players.find((x) => x.seat === seat);
-            const isDealer = room.dealerSeat === seat && room.status !== "lobby";
-            const isSb = room.sbSeat === seat && room.status === "playing";
-            const isBb = room.bbSeat === seat && room.status === "playing";
-            const isActing = room.actingSeat === seat && room.status === "playing" && !p?.folded;
+            const isActing =
+              room.actingSeat === seat && room.status === "playing" && !p?.folded;
             const isMe = p?.id === playerId;
-            const empty = !p;
             const folded = !!p?.folded && room.status !== "lobby";
-            const lastHere = room.lastSeatAction?.seat === seat;
-            const bubble = seatBubbles.get(seat);
-            // Hero hole cards live in the bottom tray — keep seat compact
-            const showSeatCards = !!p && p.holeCount > 0 && !(isMe && p.hole);
+            const showCards = !!p && p.holeCount > 0 && !(isMe && p.hole);
             return (
-              <button
+              <CompactSeat
                 key={seat}
-                type="button"
-                disabled={!empty || !canSit || pending}
-                onClick={() => api("sit", { seat })}
+                player={p}
+                empty={!p}
+                seatIndex={seat}
+                canSit={canSit}
+                pending={pending}
+                isMe={isMe}
+                isActing={isActing}
+                folded={folded}
+                isDealer={room.dealerSeat === seat && room.status !== "lobby"}
+                isSb={room.sbSeat === seat && room.status === "playing"}
+                isBb={room.bbSeat === seat && room.status === "playing"}
+                timerLeft={isActing ? timer.left : undefined}
+                timerPct={isActing ? timer.pct : undefined}
+                lastLabel={
+                  room.lastSeatAction?.seat === seat
+                    ? room.lastSeatAction.label
+                    : null
+                }
+                bubble={seatBubbles.get(seat) ?? null}
+                showCards={showCards}
+                onSit={() => api("sit", { seat })}
                 style={{ top: pos.top, left: pos.left }}
-                className={`absolute z-20 w-[4.6rem] -translate-x-1/2 -translate-y-1/2 sm:w-24 ${
-                  empty && canSit ? "cursor-pointer opacity-80 hover:opacity-100" : "cursor-default"
-                }`}
-              >
-                {!empty && (
-                  <div className={`relative mb-0.5 ${folded ? "seat-folded" : ""}`}>
-                    {bubble && !folded && (
-                      <div
-                        key={bubble.id}
-                        className="seat-chat-bubble pointer-events-none absolute bottom-full left-1/2 z-30 mb-1 max-w-[7.5rem] -translate-x-1/2"
-                      >
-                        <div
-                          className={`rounded-2xl bg-[#f7f3ea] px-2.5 py-1 text-[#1a1208] shadow-lg ${
-                            bubble.kind === "emoji"
-                              ? "text-center text-xl leading-none"
-                              : "text-[0.65rem] leading-snug"
-                          }`}
-                        >
-                          <span className="line-clamp-2 break-words">{bubble.text}</span>
-                        </div>
-                        <div className="mx-auto h-0 w-0 border-x-[5px] border-t-[5px] border-x-transparent border-t-[#f7f3ea]" />
-                      </div>
-                    )}
-                    <SeatAvatar
-                      emoji={p.emoji || "🙏"}
-                      avatarUrl={p.avatarUrl}
-                      chipColor={p.chipColor || "#f0b429"}
-                      acting={isActing}
-                      folded={folded}
-                    />
-                  </div>
-                )}
-                <div
-                  className={`px-1.5 py-1 text-center sm:px-2.5 sm:py-1.5 ${
-                    empty
-                      ? "rounded-full border border-dashed border-emerald-300/20 bg-black/20 text-emerald-100/40"
-                      : folded
-                        ? "seat-folded rounded-2xl bg-black/25 text-stone-300"
-                        : isActing
-                          ? `rounded-2xl bg-amber-400/95 text-emerald-950 shadow-md shadow-amber-900/30 ${isMe ? "seat-your-turn" : ""}`
-                          : "rounded-2xl bg-black/40 text-amber-50 backdrop-blur-md"
-                  }`}
-                >
-                  {empty ? (
-                    <span className="text-[0.6rem]">{canSit ? `+ ${seat + 1}` : "—"}</span>
-                  ) : (
-                    <>
-                      <p
-                        className={`truncate text-[0.6rem] font-medium sm:text-xs ${
-                          folded ? "text-stone-400" : ""
-                        }`}
-                      >
-                        {p.nickname}
-                        {p.isBot && p.botDifficulty
-                          ? ` · ${BOT_SHORT[p.botDifficulty]}`
-                          : ""}
-                        {isMe ? " · você" : ""}
-                      </p>
-                      <p
-                        className={`text-[0.7rem] font-semibold tabular-nums sm:text-sm ${
-                          folded ? "text-stone-500" : ""
-                        }`}
-                        style={folded ? undefined : { color: p.chipColor || "#f0b429" }}
-                      >
-                        {formatChips(p.chips)}
-                      </p>
-                      {folded && (
-                        <p className="mt-0.5 text-[0.55rem] font-semibold uppercase tracking-wider text-stone-400">
-                          Fold
-                        </p>
-                      )}
-                      {p.allIn && !folded && (
-                        <p className="text-[0.55rem] font-medium text-amber-200/90">all-in</p>
-                      )}
-                      {showSeatCards && (
-                        <div
-                          className={`mt-0.5 flex justify-center gap-0.5 ${
-                            folded ? "opacity-50 grayscale" : ""
-                          }`}
-                        >
-                          {p.hole ? (
-                            p.hole.map((c, i) => (
-                              <PlayingCard key={i} card={c} size="seat" />
-                            ))
-                          ) : (
-                            <>
-                              <PlayingCard hidden size="seat" />
-                              <PlayingCard hidden size="seat" />
-                            </>
-                          )}
-                        </div>
-                      )}
-                      {isMe && p.holeCount > 0 && !p.hole && (
-                        <div
-                          className={`mt-0.5 flex justify-center gap-0.5 ${
-                            folded ? "opacity-50 grayscale" : ""
-                          }`}
-                        >
-                          <PlayingCard hidden size="seat" />
-                          <PlayingCard hidden size="seat" />
-                        </div>
-                      )}
-                      {lastHere && room.lastSeatAction && !folded && (
-                        <p className="mt-0.5 truncate text-[0.55rem] text-amber-200/80">
-                          {room.lastSeatAction.label}
-                        </p>
-                      )}
-                    </>
-                  )}
-                </div>
-                <div className="absolute -right-0.5 top-8 flex flex-col gap-0.5 sm:top-9">
-                  {isDealer && (
-                    <span className="flex h-4 w-4 items-center justify-center rounded-full bg-amber-100/95 text-[0.5rem] font-bold text-emerald-950 shadow">
-                      D
-                    </span>
-                  )}
-                  {isSb && (
-                    <span className="flex h-4 w-4 items-center justify-center rounded-full bg-sky-200/95 text-[0.45rem] font-bold text-emerald-950 shadow">
-                      SB
-                    </span>
-                  )}
-                  {isBb && (
-                    <span className="flex h-4 w-4 items-center justify-center rounded-full bg-orange-200/95 text-[0.45rem] font-bold text-emerald-950 shadow">
-                      BB
-                    </span>
-                  )}
-                </div>
-              </button>
+              />
             );
           })}
         </div>
       </div>
 
       {error && (
-        <p className="pointer-events-none fixed left-1/2 top-20 z-40 -translate-x-1/2 rounded-full bg-rose-950/90 px-4 py-1.5 text-xs text-rose-100 shadow-lg">
+        <p className="pointer-events-none absolute left-1/2 top-14 z-40 -translate-x-1/2 rounded-full bg-rose-950/90 px-4 py-1.5 text-xs text-rose-100 shadow-lg">
           {error}
         </p>
       )}
 
-      {/* Hero hole cards — above FABs, fully inside safe area */}
-      {me?.hole && me.hole.length > 0 && (room.status === "playing" || room.status === "showdown") && (
-        <div
-          className="pointer-events-none fixed left-1/2 z-[38] flex -translate-x-1/2 flex-col items-center gap-1"
-          style={{
-            bottom: canBet
-              ? "calc(5.75rem + env(safe-area-inset-bottom))"
-              : "calc(1.5rem + env(safe-area-inset-bottom))",
-          }}
-        >
-          <div
-            className={`flex gap-1.5 rounded-2xl border border-white/10 bg-[#120e08]/85 px-2.5 py-1.5 shadow-2xl backdrop-blur-md sm:px-3 sm:py-2 ${
-              me.folded ? "seat-folded" : ""
-            }`}
-          >
-            {me.hole.map((c, i) => (
-              <PlayingCard key={i} card={c} size="hero" dealDelayMs={i * 80} />
-            ))}
-          </div>
-          {me.folded && (
-            <span className="rounded-full bg-stone-800/80 px-2.5 py-0.5 text-[0.6rem] font-semibold uppercase tracking-wider text-stone-300">
-              Fold
-            </span>
+      {/* Bottom dock — hole cards + actions / pre-actions (never clipped) */}
+      <div className="relative z-30 flex shrink-0 flex-col items-center gap-1.5 border-t border-white/5 bg-[#0a100c]/90 px-3 pb-[max(0.5rem,env(safe-area-inset-bottom))] pt-2 backdrop-blur-md">
+        {me?.hole &&
+          me.hole.length > 0 &&
+          (room.status === "playing" || room.status === "showdown") && (
+            <div
+              className={`flex gap-1.5 rounded-2xl border border-white/10 bg-[#120e08]/90 px-2.5 py-1.5 ${
+                me.folded ? "seat-folded" : ""
+              }`}
+            >
+              {me.hole.map((c, i) => (
+                <PlayingCard key={i} card={c} size="hero" dealDelayMs={i * 80} />
+              ))}
+            </div>
           )}
-        </div>
-      )}
 
-      {/* Floating actions — below hero tray */}
-      {canBet && (
-        <div className="pointer-events-none fixed inset-x-0 bottom-[calc(0.65rem+env(safe-area-inset-bottom))] z-40 flex flex-col items-center gap-2 px-3">
-          {raiseOpen && (
-            <div className="pointer-events-auto flex flex-wrap items-center justify-center gap-1.5 rounded-full border border-white/10 bg-[#14100a]/90 px-2.5 py-1.5 shadow-2xl backdrop-blur-md">
-              {[
-                { label: "½ pote", amount: Math.min(allInTo, halfPot) },
-                { label: "Pote", amount: Math.min(allInTo, potBet) },
-                { label: "All-in", amount: allInTo },
-              ].map((preset) => (
+        {canBet && (
+          <div className="flex w-full max-w-md flex-col items-center gap-1.5">
+            {raiseOpen && (
+              <div className="flex flex-wrap items-center justify-center gap-1.5 rounded-full border border-white/10 bg-[#14100a]/95 px-2.5 py-1.5">
+                {[
+                  { label: "½ pote", amount: Math.min(allInTo, halfPot) },
+                  { label: "Pote", amount: Math.min(allInTo, potBet) },
+                  { label: "All-in", amount: allInTo },
+                ].map((preset) => (
+                  <button
+                    key={preset.label}
+                    type="button"
+                    disabled={
+                      pending || (preset.amount < minRaiseTo && preset.amount < allInTo)
+                    }
+                    onClick={() => {
+                      setBetInput(String(preset.amount));
+                      api("action", {
+                        action: room.currentBet === 0 ? "bet" : "raise",
+                        amount: preset.amount,
+                      });
+                      setRaiseOpen(false);
+                    }}
+                    className="action-pill rounded-full px-3 py-1.5 text-xs text-amber-100/90 hover:bg-white/10 disabled:opacity-30"
+                  >
+                    {preset.label}
+                  </button>
+                ))}
+                <input
+                  type="number"
+                  min={minRaiseTo}
+                  max={allInTo}
+                  value={betInput}
+                  onChange={(e) => setBetInput(e.target.value)}
+                  placeholder={`${minRaiseTo}+`}
+                  className="w-16 rounded-full border border-white/10 bg-black/30 px-2.5 py-1.5 text-center text-sm outline-none"
+                />
                 <button
-                  key={preset.label}
                   type="button"
-                  disabled={
-                    pending || (preset.amount < minRaiseTo && preset.amount < allInTo)
-                  }
+                  disabled={pending}
                   onClick={() => {
-                    setBetInput(String(preset.amount));
+                    const amount = Number(betInput) || minRaiseTo;
                     api("action", {
                       action: room.currentBet === 0 ? "bet" : "raise",
-                      amount: preset.amount,
+                      amount: Math.min(allInTo, Math.max(minRaiseTo, amount)),
                     });
                     setRaiseOpen(false);
                   }}
-                  className="action-pill rounded-full px-3 py-1.5 text-xs text-amber-100/90 hover:bg-white/10 disabled:opacity-30"
+                  className="action-pill rounded-full bg-amber-400 px-3.5 py-1.5 text-sm font-semibold text-[#1a1208]"
                 >
-                  {preset.label}
+                  OK
                 </button>
-              ))}
-              <input
-                type="number"
-                min={minRaiseTo}
-                max={allInTo}
-                value={betInput}
-                onChange={(e) => setBetInput(e.target.value)}
-                placeholder={`${minRaiseTo}+`}
-                className="w-16 rounded-full border border-white/10 bg-black/30 px-2.5 py-1.5 text-center text-sm outline-none focus:border-amber-400/40"
-              />
+              </div>
+            )}
+            <div className="flex items-center gap-2 rounded-full border border-white/10 bg-[#120e08]/80 p-1.5">
               <button
                 type="button"
                 disabled={pending}
-                onClick={() => {
-                  const amount = Number(betInput) || minRaiseTo;
-                  api("action", {
-                    action: room.currentBet === 0 ? "bet" : "raise",
-                    amount: Math.min(allInTo, Math.max(minRaiseTo, amount)),
-                  });
-                  setRaiseOpen(false);
-                }}
-                className="action-pill rounded-full bg-amber-400 px-3.5 py-1.5 text-sm font-semibold text-[#1a1208]"
+                onClick={() => api("action", { action: "fold" })}
+                className="action-pill h-10 min-w-[3.75rem] rounded-full bg-rose-950/80 px-3 text-sm font-semibold text-rose-50 ring-1 ring-rose-400/35 sm:h-11"
               >
-                OK
+                Fold
+              </button>
+              {toCall === 0 ? (
+                <button
+                  type="button"
+                  disabled={pending}
+                  onClick={() => api("action", { action: "check" })}
+                  className="action-pill h-10 min-w-[4.5rem] rounded-full bg-emerald-800/90 px-4 text-sm font-semibold text-emerald-50 ring-1 ring-emerald-400/30 sm:h-11"
+                >
+                  Check
+                </button>
+              ) : (
+                <button
+                  type="button"
+                  disabled={pending}
+                  onClick={() => api("action", { action: "call" })}
+                  className="action-pill h-10 min-w-[4.5rem] rounded-full bg-emerald-800/90 px-4 text-sm font-semibold text-emerald-50 ring-1 ring-emerald-400/30 sm:h-11"
+                >
+                  Call {formatChips(Math.min(toCall, me?.chips ?? toCall))}
+                </button>
+              )}
+              <button
+                type="button"
+                disabled={pending}
+                onClick={() => setRaiseOpen((v) => !v)}
+                className="action-pill h-10 min-w-[3.75rem] rounded-full bg-amber-400 px-3 text-sm font-semibold text-[#1a1208] sm:h-11"
+              >
+                {room.currentBet === 0 ? "Bet" : "Raise"}
               </button>
             </div>
-          )}
-          <div className="pointer-events-auto flex items-center gap-2 rounded-full border border-white/10 bg-[#120e08]/70 p-1.5 shadow-2xl backdrop-blur-md">
-            <button
-              type="button"
-              disabled={pending}
-              onClick={() => api("action", { action: "fold" })}
-              className="action-pill h-11 min-w-[4rem] rounded-full bg-rose-950/80 px-4 text-sm font-semibold text-rose-50 ring-1 ring-rose-400/35 sm:h-12"
-            >
-              Fold
-            </button>
-            {toCall === 0 ? (
-              <button
-                type="button"
-                disabled={pending}
-                onClick={() => api("action", { action: "check" })}
-                className="action-pill h-11 min-w-[5rem] rounded-full bg-emerald-800/90 px-5 text-sm font-semibold text-emerald-50 ring-1 ring-emerald-400/30 sm:h-12"
-              >
-                Check
-              </button>
-            ) : (
-              <button
-                type="button"
-                disabled={pending}
-                onClick={() => api("action", { action: "call" })}
-                className="action-pill h-11 min-w-[5rem] rounded-full bg-emerald-800/90 px-5 text-sm font-semibold text-emerald-50 ring-1 ring-emerald-400/30 sm:h-12"
-              >
-                Call {formatChips(Math.min(toCall, me?.chips ?? toCall))}
-              </button>
-            )}
-            <button
-              type="button"
-              disabled={pending}
-              onClick={() => setRaiseOpen((v) => !v)}
-              className="action-pill h-11 min-w-[4rem] rounded-full bg-amber-400 px-4 text-sm font-semibold text-[#1a1208] shadow-md shadow-amber-900/40 sm:h-12"
-            >
-              {room.currentBet === 0 ? "Bet" : "Raise"}
-            </button>
           </div>
-        </div>
-      )}
-
-      {!myTurn && room.status === "playing" && !isSpectator && !me?.hole && (
-        <p className="pointer-events-none fixed bottom-4 left-1/2 z-30 -translate-x-1/2 text-xs text-emerald-100/45">
-          Aguardando {actingName}…
-        </p>
-      )}
-
-      {room.status === "lobby" && canSit && (
-        <p className="pointer-events-none fixed bottom-4 left-1/2 z-30 -translate-x-1/2 text-xs text-emerald-100/55">
-          Toque num assento livre
-        </p>
-      )}
-
-      {room.status !== "playing" &&
-        me?.seat != null &&
-        !isHost && (
-          <p className="pointer-events-none fixed bottom-4 left-1/2 z-30 -translate-x-1/2 text-xs text-emerald-100/55">
-            Aguardando o anfitrião…
-          </p>
         )}
 
-      {/* Host FAB — left; above chat */}
+        {showPreActions && (
+          <div
+            className="flex w-full max-w-md flex-wrap items-center justify-center gap-1.5"
+            role="group"
+            aria-label="Pré-ações"
+          >
+            {(
+              [
+                { id: "check" as const, label: "Check se ninguém apostar" },
+                { id: "fold_check" as const, label: "Fold/Check" },
+                { id: "call_any" as const, label: "Cobrir qualquer" },
+              ] as const
+            ).map((opt) => (
+              <button
+                key={opt.id}
+                type="button"
+                onClick={() => togglePre(opt.id)}
+                aria-pressed={preAction === opt.id}
+                className={`rounded-full px-2.5 py-1 text-[0.65rem] transition sm:text-xs ${
+                  preAction === opt.id
+                    ? "bg-amber-400 font-semibold text-[#1a1208]"
+                    : "border border-white/15 bg-white/5 text-amber-100/70 hover:bg-white/10"
+                }`}
+              >
+                {opt.label}
+              </button>
+            ))}
+          </div>
+        )}
+
+        {room.status === "lobby" && canSit && (
+          <p className="text-[0.65rem] text-emerald-100/50">Toque num assento livre</p>
+        )}
+        {room.status !== "playing" && me?.seat != null && !isHost && !room.tableEnded && (
+          <p className="text-[0.65rem] text-emerald-100/50">Aguardando o anfitrião…</p>
+        )}
+      </div>
+
       {isHost && (
         <button
           type="button"
           onClick={() => setHostOpen(true)}
-          className="action-pill fixed bottom-[calc(6.5rem+env(safe-area-inset-bottom))] left-3 z-40 flex h-11 w-11 items-center justify-center rounded-full border border-white/10 bg-[#1a140c]/85 text-lg text-amber-300 shadow-xl backdrop-blur-md sm:left-5"
+          className="action-pill fixed bottom-[calc(8.5rem+env(safe-area-inset-bottom))] left-3 z-40 flex h-10 w-10 items-center justify-center rounded-full border border-white/10 bg-[#1a140c]/90 text-base text-amber-300 shadow-xl sm:left-5"
           aria-label="Menu da mesa"
           title="Menu anfitrião"
         >

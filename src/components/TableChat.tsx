@@ -66,7 +66,7 @@ export function TableChat({
   return (
     <div
       ref={panelRef}
-      className="pointer-events-none fixed bottom-[calc(5.75rem+env(safe-area-inset-bottom))] right-2 z-40 flex flex-col items-end gap-2 sm:bottom-[calc(6.5rem+env(safe-area-inset-bottom))] sm:right-5"
+      className="pointer-events-none fixed bottom-[calc(8.5rem+env(safe-area-inset-bottom))] right-2 z-40 flex flex-col items-end gap-2 sm:right-5"
     >
       {open && (
         <div className="pointer-events-auto flex w-[min(20rem,calc(100vw-1.5rem))] flex-col overflow-hidden rounded-3xl border border-white/10 bg-[#14100a]/92 shadow-2xl backdrop-blur-md">

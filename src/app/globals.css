@@ -360,19 +360,3 @@ body {
   transform: scale(0.96);
 }
 
-/* Table oval: fit width + height of stage (header/FAB safe area) */
-.table-stage {
-  container-type: size;
-}
-
-.table-fit {
-  width: min(100%, 34rem);
-  max-height: 100%;
-  height: auto;
-}
-
-@supports (width: 1cqh) {
-  .table-fit {
-    width: min(100%, 34rem, calc(100cqh * 5 / 4));
-  }
-}

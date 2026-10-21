@@ -1,6 +1,7 @@
 "use client";
 
 import type { CSSProperties } from "react";
+import { betRingPositions } from "@/lib/poker/seat-layout";
 
 /**
  * Felt & Clay — classic casino chips (red / blue / green / black).
@@ -189,19 +190,6 @@ export function ChipShowcase({ className = "" }: { className?: string }) {
   );
 }
 
-export function seatBetOffset(seat: number): { top: string; left: string } {
-  // Nudge bets toward center from inset SEAT_POS
-  const inward: { top: string; left: string }[] = [
-    { top: "66%", left: "50%" },
-    { top: "58%", left: "68%" },
-    { top: "48%", left: "74%" },
-    { top: "36%", left: "68%" },
-    { top: "30%", left: "50%" },
-    { top: "36%", left: "32%" },
-    { top: "48%", left: "26%" },
-    { top: "58%", left: "32%" },
-    { top: "68%", left: "60%" },
-    { top: "68%", left: "40%" },
-  ];
-  return inward[seat] ?? { top: "50%", left: "50%" };
+export function seatBetOffset(seat: number, maxSeats = 10): { top: string; left: string } {
+  return betRingPositions(maxSeats)[seat] ?? { top: "50%", left: "50%" };
 }
