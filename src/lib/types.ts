@@ -39,12 +39,19 @@ export type Winner = {
   handName: string;
 };
 
+export type SeatAction = {
+  seat: number;
+  label: string;
+};
+
 export type Room = {
   code: string;
   hostId: string;
   players: Player[];
   status: "lobby" | "playing" | "showdown";
   dealerSeat: number;
+  sbSeat: number | null;
+  bbSeat: number | null;
   smallBlind: number;
   bigBlind: number;
   pot: number;
@@ -57,6 +64,15 @@ export type Room = {
   handNumber: number;
   winners: Winner[] | null;
   lastAction: string | null;
+  lastSeatAction: SeatAction | null;
+  /** Seconds per human decision (default 18). */
+  turnSeconds: number;
+  /** Epoch ms when current actor must act. */
+  turnDeadline: number | null;
+  /** Host: auto-start next hand after showdown. */
+  autoStartNext: boolean;
+  /** Epoch ms when showdown reveal ends (for auto-start). */
+  showdownUntil: number | null;
   updatedAt: number;
 };
 
@@ -68,4 +84,6 @@ export type PublicPlayer = Omit<Player, "hole"> & {
 
 export type PublicRoom = Omit<Room, "deck" | "players"> & {
   players: PublicPlayer[];
+  /** Server time for client timer sync. */
+  serverNow: number;
 };

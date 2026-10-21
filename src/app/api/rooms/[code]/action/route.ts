@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
-import { advanceBots } from "@/lib/poker/bots";
 import { applyAction } from "@/lib/poker/engine";
+import { tickRoom } from "@/lib/poker/turn";
 import { toPublicRoom } from "@/lib/public-room";
 import { requireUser } from "@/lib/require-user";
 import type { PlayerAction } from "@/lib/types";
@@ -29,8 +29,10 @@ export async function POST(req: Request, ctx: Ctx) {
     return NextResponse.json({ error: "Ação inválida" }, { status: 400 });
   }
   try {
+    // Enforce timeout first so late clicks don't steal a timed-out turn
+    tickRoom(room);
     applyAction(room, user.id, body.action as PlayerAction, body.amount);
-    advanceBots(room);
+    tickRoom(room);
     await saveRoom(room);
     return NextResponse.json({ room: toPublicRoom(room, user.id) });
   } catch (e) {

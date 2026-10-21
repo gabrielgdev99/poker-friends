@@ -5,19 +5,25 @@ export function PlayingCard({
   card,
   hidden,
   compact,
+  dealDelayMs,
 }: {
   card?: Card | null;
   hidden?: boolean;
   compact?: boolean;
+  dealDelayMs?: number;
 }) {
   const size = compact
-    ? "h-12 w-9 text-[0.65rem]"
+    ? "h-11 w-8 text-[0.6rem] sm:h-12 sm:w-9 sm:text-[0.65rem]"
     : "h-16 w-11 sm:h-20 sm:w-14 text-sm sm:text-base";
+  const dealStyle =
+    dealDelayMs != null ? { animationDelay: `${dealDelayMs}ms` } : undefined;
+  const dealClass = dealDelayMs != null ? "card-deal" : "";
 
   if (hidden || !card) {
     return (
       <div
-        className={`${size} rounded-md border border-amber-900/40 bg-[linear-gradient(145deg,#1a3a2a_0%,#0d2218_50%,#1f4a32_100%)] shadow-md shadow-black/40`}
+        className={`${size} ${dealClass} rounded-md border border-amber-900/40 bg-[linear-gradient(145deg,#1a3a2a_0%,#0d2218_50%,#1f4a32_100%)] shadow-md shadow-black/40`}
+        style={dealStyle}
         aria-label="Carta fechada"
       >
         <div className="flex h-full items-center justify-center">
@@ -32,7 +38,8 @@ export function PlayingCard({
   const red = isRed(card);
   return (
     <div
-      className={`${size} flex flex-col justify-between rounded-md border border-stone-300/80 bg-[#f7f3ea] p-1 shadow-md shadow-black/30`}
+      className={`${size} ${dealClass} flex flex-col justify-between rounded-md border border-stone-300/80 bg-[#f7f3ea] p-1 shadow-md shadow-black/30`}
+      style={dealStyle}
       aria-label={cardLabel(card)}
     >
       <span

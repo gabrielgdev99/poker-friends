@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
-import { advanceBots } from "@/lib/poker/bots";
 import { toPublicRoom } from "@/lib/public-room";
+import { tickRoom } from "@/lib/poker/turn";
 import { requireUser } from "@/lib/require-user";
 import { getRoom, saveRoom } from "@/lib/store";
 
@@ -17,7 +17,6 @@ export async function GET(_req: Request, ctx: Ctx) {
   if (!room) {
     return NextResponse.json({ error: "Sala não encontrada" }, { status: 404 });
   }
-  // Server-side bot turns on every poll so the hand never hangs
-  if (advanceBots(room)) await saveRoom(room);
+  if (tickRoom(room)) await saveRoom(room);
   return NextResponse.json({ room: toPublicRoom(room, user.id) });
 }

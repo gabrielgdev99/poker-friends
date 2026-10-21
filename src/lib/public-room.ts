@@ -7,6 +7,8 @@ export function toPublicRoom(room: Room, viewerId?: string): PublicRoom {
     hostId: room.hostId,
     status: room.status,
     dealerSeat: room.dealerSeat,
+    sbSeat: room.sbSeat ?? null,
+    bbSeat: room.bbSeat ?? null,
     smallBlind: room.smallBlind,
     bigBlind: room.bigBlind,
     pot: room.pot,
@@ -18,7 +20,13 @@ export function toPublicRoom(room: Room, viewerId?: string): PublicRoom {
     handNumber: room.handNumber,
     winners: room.winners,
     lastAction: room.lastAction,
+    lastSeatAction: room.lastSeatAction ?? null,
+    turnSeconds: room.turnSeconds ?? 18,
+    turnDeadline: room.turnDeadline ?? null,
+    autoStartNext: !!room.autoStartNext,
+    showdownUntil: room.showdownUntil ?? null,
     updatedAt: room.updatedAt,
+    serverNow: Date.now(),
     players: room.players.map((p) => {
       const reveal = showAll || p.id === viewerId;
       return {

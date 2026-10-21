@@ -1,5 +1,6 @@
 import { freshDeck, shuffle } from "@/lib/poker/cards";
 import { bestHand, compareHands } from "@/lib/poker/hand-eval";
+import { SHOWDOWN_MS, defaultTurnSeconds, resetTurnClock } from "@/lib/poker/clock";
 import type { Player, PlayerAction, Room, Street, Winner } from "@/lib/types";
 
 const MAX_SEATS = 10;
@@ -101,6 +102,7 @@ function advanceStreet(room: Room) {
         nextOccupiedSeat(room, room.dealerSeat, (p) => !p.folded && !p.allIn)
       : nextOccupiedSeat(room, room.dealerSeat, (p) => !p.folded && !p.allIn);
   room.actingSeat = first;
+  if (room.status === "playing") resetTurnClock(room);
 
   // If everyone all-in, burn through remaining streets
   if (first === null || bettingComplete(room)) {
@@ -135,7 +137,13 @@ function awardPotTo(room: Room, winners: Player[], handName: string) {
   room.winners = result;
   room.status = "showdown";
   room.actingSeat = null;
+  room.turnDeadline = null;
+  room.showdownUntil = Date.now() + SHOWDOWN_MS;
   room.lastAction = `Showdown: ${result.map((w) => `assento ${w.seat + 1} +${w.amount}`).join(", ")}`;
+  room.lastSeatAction = {
+    seat: winners[0].seat!,
+    label: `+${result[0].amount}`,
+  };
 }
 
 function showdown(room: Room) {
@@ -178,6 +186,8 @@ export function createRoom(code: string, hostId: string, hostNickname: string): 
     players: [host],
     status: "lobby",
     dealerSeat: 0,
+    sbSeat: null,
+    bbSeat: null,
     smallBlind: 5,
     bigBlind: 10,
     pot: 0,
@@ -190,6 +200,11 @@ export function createRoom(code: string, hostId: string, hostNickname: string): 
     handNumber: 0,
     winners: null,
     lastAction: "Sala criada",
+    lastSeatAction: null,
+    turnSeconds: defaultTurnSeconds(),
+    turnDeadline: null,
+    autoStartNext: true,
+    showdownUntil: null,
     updatedAt: Date.now(),
   };
 }
@@ -272,6 +287,8 @@ export function startHand(room: Room, requesterId: string): Room {
       : nextOccupiedSeat(room, room.dealerSeat, (p) => p.chips > 0)!;
   const bbSeat = nextOccupiedSeat(room, sbSeat, (p) => p.chips > 0)!;
 
+  room.sbSeat = sbSeat;
+  room.bbSeat = bbSeat;
   const sb = playerAt(room, sbSeat)!;
   const bb = playerAt(room, bbSeat)!;
   putChips(sb, room.smallBlind, room);
@@ -287,17 +304,14 @@ export function startHand(room: Room, requesterId: string): Room {
 
   room.actingSeat =
     nextOccupiedSeat(room, bbSeat, (p) => !p.folded && !p.allIn && p.chips >= 0) ?? bbSeat;
-  // UTG must act; mark blinds as not fully acted if facing raise later
-  const actor = playerAt(room, room.actingSeat);
-  if (actor) {
-    // blinds already posted; they still need to act if raised
-    for (const p of room.players) {
-      if (p.seat === sbSeat || p.seat === bbSeat) p.actedThisRound = false;
-      else if (p.seat !== null) p.actedThisRound = false;
-    }
+  for (const p of room.players) {
+    if (p.seat !== null) p.actedThisRound = false;
   }
 
+  room.showdownUntil = null;
+  room.lastSeatAction = null;
   room.lastAction = `Mão #${room.handNumber} — blinds ${room.smallBlind}/${room.bigBlind}`;
+  resetTurnClock(room);
   room.updatedAt = Date.now();
   return room;
 }
@@ -319,17 +333,20 @@ export function applyAction(
 
   const toCall = room.currentBet - player.bet;
 
+  let seatLabel = "";
   switch (action) {
     case "fold": {
       player.folded = true;
       player.actedThisRound = true;
       room.lastAction = `${player.nickname} desistiu`;
+      seatLabel = "Fold";
       break;
     }
     case "check": {
       if (toCall > 0) throw new Error("Não pode dar check");
       player.actedThisRound = true;
       room.lastAction = `${player.nickname} deu check`;
+      seatLabel = "Check";
       break;
     }
     case "call": {
@@ -337,22 +354,19 @@ export function applyAction(
       putChips(player, toCall, room);
       player.actedThisRound = true;
       room.lastAction = `${player.nickname} pagou ${toCall}`;
+      seatLabel = `Call ${toCall}`;
       break;
     }
     case "bet":
     case "raise": {
       const raiseTo = amount ?? 0;
       if (raiseTo < room.currentBet + room.minRaise && raiseTo < player.bet + player.chips) {
-        // allow all-in short
         if (raiseTo !== player.bet + player.chips) {
           throw new Error(`Aumento mínimo para ${room.currentBet + room.minRaise}`);
         }
       }
       if (raiseTo <= room.currentBet && action === "raise") {
         throw new Error("Raise deve superar a aposta atual");
-      }
-      if (room.currentBet === 0 && action === "raise") {
-        // treat as bet
       }
       const need = raiseTo - player.bet;
       if (need <= 0) throw new Error("Valor inválido");
@@ -368,14 +382,17 @@ export function applyAction(
         }
       }
       player.actedThisRound = true;
-      room.lastAction = `${player.nickname} ${action === "bet" ? "apostou" : "aumentou"} para ${newBet}`;
+      const verb = action === "bet" || prev === 0 ? "Bet" : "Raise";
+      room.lastAction = `${player.nickname} ${verb === "Bet" ? "apostou" : "aumentou"} para ${newBet}`;
+      seatLabel = `${verb} ${newBet}`;
       break;
     }
     default:
       throw new Error("Ação inválida");
   }
 
-  // Everyone folded?
+  room.lastSeatAction = { seat: player.seat!, label: seatLabel };
+
   const remaining = room.players.filter((p) => p.seat !== null && !p.folded);
   if (remaining.length === 1) {
     awardPotTo(room, remaining, "Todos desistiram");
@@ -391,6 +408,29 @@ export function applyAction(
     if (next === null) advanceStreet(room);
   }
 
+  if (room.status === "playing") resetTurnClock(room);
+  else room.turnDeadline = null;
+
+  room.updatedAt = Date.now();
+  return room;
+}
+
+export function updateRoomSettings(
+  room: Room,
+  requesterId: string,
+  patch: { turnSeconds?: number; autoStartNext?: boolean },
+): Room {
+  if (requesterId !== room.hostId) throw new Error("Só o anfitrião altera ajustes");
+  if (room.status === "playing") throw new Error("Espere o fim da mão");
+  if (patch.turnSeconds !== undefined) {
+    const s = Math.floor(patch.turnSeconds);
+    if (s < 8 || s > 60) throw new Error("Timer entre 8 e 60s");
+    room.turnSeconds = s;
+  }
+  if (patch.autoStartNext !== undefined) {
+    room.autoStartNext = patch.autoStartNext;
+  }
+  room.lastAction = "Ajustes da sala atualizados";
   room.updatedAt = Date.now();
   return room;
 }

@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
-import { advanceBots } from "@/lib/poker/bots";
 import { startHand } from "@/lib/poker/engine";
+import { tickRoom } from "@/lib/poker/turn";
 import { toPublicRoom } from "@/lib/public-room";
 import { requireUser } from "@/lib/require-user";
 import { getRoom, saveRoom } from "@/lib/store";
@@ -20,7 +20,7 @@ export async function POST(req: Request, ctx: Ctx) {
   }
   try {
     startHand(room, user.id);
-    advanceBots(room);
+    tickRoom(room);
     await saveRoom(room);
     return NextResponse.json({ room: toPublicRoom(room, user.id) });
   } catch (e) {
