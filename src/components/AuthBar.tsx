@@ -52,7 +52,7 @@ export function AuthBar({ compact }: { compact?: boolean }) {
           referrerPolicy="no-referrer"
         />
       )}
-      <span className="max-w-[5.5rem] truncate text-xs text-[var(--fc-ink)]/80 sm:max-w-[8rem]">
+      <span className="max-w-[4.2rem] truncate text-xs text-[var(--fc-ink)]/80 sm:max-w-[8rem]">
         {player.name}
       </span>
       {!compact && (

@@ -3,13 +3,6 @@ import type { Card } from "@/lib/types";
 
 export type CardSize = "seat" | "board" | "hero";
 
-/** Real poker card ratio ≈ 2.5 : 3.5 (width : height). Width-driven + aspect. */
-const SIZE: Record<CardSize, string> = {
-  seat: "w-[1.15rem] sm:w-6 aspect-[2.5/3.5] text-[0.5rem] sm:text-[0.65rem]",
-  board: "w-[2.5rem] sm:w-[3.5rem] aspect-[2.5/3.5] text-xs sm:text-base",
-  hero: "w-[3rem] sm:w-[4.25rem] aspect-[2.5/3.5] text-sm sm:text-base",
-};
-
 export function PlayingCard({
   card,
   hidden,
@@ -25,30 +18,17 @@ export function PlayingCard({
   dealDelayMs?: number;
 }) {
   const resolved: CardSize = compact && size === "seat" ? "seat" : size;
-  const box = SIZE[resolved];
   const dealStyle =
     dealDelayMs != null ? { animationDelay: `${dealDelayMs}ms` } : undefined;
   const dealClass = dealDelayMs != null ? "card-deal" : "";
-  const pip =
-    resolved === "hero"
-      ? "text-lg sm:text-2xl"
-      : resolved === "board"
-        ? "text-base sm:text-xl"
-        : "text-sm sm:text-base";
 
   if (hidden || !card) {
     return (
       <div
-        className={`${box} ${dealClass} shrink-0 rounded-[0.35rem] border border-amber-900/40 bg-[linear-gradient(145deg,#1a3a2a_0%,#0d2218_50%,#1f4a32_100%)] shadow-md shadow-black/40`}
+        className={`playing-card playing-card--${resolved} playing-card--back ${dealClass}`}
         style={dealStyle}
         aria-label="Carta fechada"
-      >
-        <div className="flex h-full items-center justify-center">
-          <span className={`font-[family-name:var(--font-display)] text-amber-500/50 ${pip}`}>
-            ♠
-          </span>
-        </div>
-      </div>
+      />
     );
   }
 
@@ -58,21 +38,23 @@ export function PlayingCard({
 
   return (
     <div
-      className={`${box} ${dealClass} flex shrink-0 flex-col justify-between rounded-[0.35rem] border border-stone-300/80 bg-[#f7f3ea] p-0.5 shadow-md shadow-black/30 sm:p-1`}
+      className={`playing-card playing-card--${resolved} ${dealClass} ${red ? "playing-card--red" : ""}`}
       style={dealStyle}
       aria-label={cardLabel(card)}
     >
-      <span
-        className={`font-semibold leading-none ${red ? "text-rose-700" : "text-stone-900"}`}
-      >
+      <span className="playing-card__idx">
         {rank}
-        <span className="ml-px">{suit}</span>
+        <span>{suit}</span>
       </span>
-      <span
-        className={`self-end leading-none ${pip} ${red ? "text-rose-700" : "text-stone-900"}`}
-      >
+      <span className="playing-card__pip" aria-hidden>
         {suit}
       </span>
+      {resolved !== "seat" && (
+        <span className="playing-card__idx playing-card__idx--rev" aria-hidden>
+          {rank}
+          <span>{suit}</span>
+        </span>
+      )}
     </div>
   );
 }

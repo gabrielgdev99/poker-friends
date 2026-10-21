@@ -3,6 +3,18 @@
 import type { CSSProperties } from "react";
 import { betRingPositions } from "@/lib/poker/seat-layout";
 
+/** Compact chip text. Big stacks stay short so the pile never grows with the amount. */
+export function formatChips(n: number) {
+  const v = Math.max(0, Math.floor(n));
+  if (v >= 10_000) {
+    const k = v / 1000;
+    const s =
+      k >= 100 ? String(Math.round(k)) : Number.isInteger(k) ? String(k) : k.toFixed(1);
+    return `${s}k`;
+  }
+  return v.toLocaleString("pt-BR");
+}
+
 /**
  * Felt & Clay — classic casino chips (red / blue / green / black).
  * Edge spots + face denom + stacked depth. Shared by pot, seat bets, lobby.
@@ -88,11 +100,6 @@ function breakChips(amount: number): { tone: ChipTone; n: number }[] {
   return out;
 }
 
-function formatAmt(n: number) {
-  if (n >= 1000) return `${(n / 1000).toFixed(n % 1000 === 0 ? 0 : 1)}k`;
-  return String(n);
-}
-
 function PokerChip({
   tone,
   size,
@@ -122,51 +129,70 @@ function PokerChip({
   );
 }
 
+/**
+ * One summarized pile + the real amount.
+ * Columns and height are capped so 10.000+ cannot spill onto seats, the board, or the rail.
+ */
+function summarizedPile(amount: number, columns: number, maxHigh: number) {
+  let left = Math.max(0, Math.floor(amount));
+  const out: { tone: ChipTone; n: number }[] = [];
+  for (const tone of DENOMS) {
+    if (out.length >= columns || left <= 0) break;
+    if (left < tone.value) continue;
+    const n = Math.min(maxHigh, Math.floor(left / tone.value));
+    if (n <= 0) continue;
+    out.push({ tone, n });
+    left -= n * tone.value;
+  }
+  if (out.length === 0) out.push({ tone: DENOMS[DENOMS.length - 1], n: 1 });
+  return out;
+}
+
 export function ChipStack({
   amount,
   size = "md",
   label,
+  layout = "stack",
 }: {
   amount: number;
   size?: "sm" | "md" | "lg";
   label?: string;
+  /** bet: 1 column. pot: 2 columns. Both max 3 chips tall. */
+  layout?: "bet" | "pot" | "stack";
 }) {
   if (amount <= 0) return null;
-  const stacks = breakChips(amount);
-  // Vertical step between chips in a stack (px) — thicker = clearer 3D
-  const step = size === "lg" ? 5 : size === "sm" ? 3.5 : 4.25;
-  const baseH = size === "lg" ? 28 : size === "sm" ? 18 : 22;
-  const gap = size === "lg" ? "gap-1.5" : "gap-1";
+  const columns = layout === "pot" ? 2 : 1;
+  const maxHigh = 3;
+  const stacks =
+    layout === "stack" ? breakChips(amount).slice(0, 3).map((s) => ({ ...s, n: Math.min(3, s.n) })) : summarizedPile(amount, columns, maxHigh);
+  const chipPx = layout === "pot" ? 16 : 14;
+  const step = 3;
 
   return (
-    <div className="fc-chip-stack" title={`${amount} fichas`}>
-      <div className={`flex items-end ${gap}`}>
+    <div
+      className={`fc-chip-stack fc-chip-stack--${layout}`}
+      title={`${amount} fichas`}
+    >
+      <div className="fc-chip-stack__pile" aria-hidden>
         {stacks.map(({ tone, n }) => (
-          <div
+          <span
             key={tone.value}
-            className="relative flex flex-col-reverse items-center"
-            style={{ height: `${(n - 1) * step + baseH}px` }}
+            className="fc-chip-stack__col"
+            style={{ width: chipPx, height: chipPx + (n - 1) * step }}
           >
             {Array.from({ length: n }).map((_, i) => (
               <span
                 key={i}
                 className="fc-chip-stack__unit"
-                style={{
-                  marginBottom: i === 0 ? 0 : -(baseH - step),
-                  zIndex: n - i,
-                }}
+                style={{ bottom: i * step, zIndex: i + 1 }}
               >
-                <PokerChip tone={tone} size={size} showFace={i === n - 1} />
+                <PokerChip tone={tone} size={size === "lg" ? "md" : size} showFace={i === n - 1 && layout === "pot"} />
               </span>
             ))}
-          </div>
+          </span>
         ))}
       </div>
-      <span
-        className={`fc-chip-stack__label ${size === "lg" ? "fc-chip-stack__label--lg" : ""}`}
-      >
-        {label ?? formatAmt(amount)}
-      </span>
+      <span className="fc-chip-stack__label">{label ?? formatChips(amount)}</span>
     </div>
   );
 }
@@ -190,6 +216,10 @@ export function ChipShowcase({ className = "" }: { className?: string }) {
   );
 }
 
-export function seatBetOffset(seat: number, maxSeats = 10): { top: string; left: string } {
-  return betRingPositions(maxSeats)[seat] ?? { top: "50%", left: "50%" };
+export function seatBetOffset(
+  seat: number,
+  maxSeats = 10,
+  heroSeat: number | null = null,
+): { top: string; left: string } {
+  return betRingPositions(maxSeats, heroSeat)[seat] ?? { top: "50%", left: "50%" };
 }
