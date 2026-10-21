@@ -100,13 +100,13 @@ export function HomeClient() {
 
       {!loggedIn && status !== "loading" && (
         <div className="flex flex-col gap-3 border-l-2 border-amber-500/60 pl-4">
-          <p className="text-emerald-100/70">
-            Faça login com Google para criar ou entrar em uma sala.
+          <p className="text-amber-50/70">
+            Entra com Google pra sentar na mesa com a galera 🙏
           </p>
           <button
             type="button"
             onClick={() => signIn("google")}
-            className="w-fit bg-amber-500 px-6 py-3.5 font-[family-name:var(--font-display)] text-lg text-emerald-950 transition hover:bg-amber-400"
+            className="w-fit bg-amber-500 px-6 py-3.5 font-[family-name:var(--font-display)] text-lg text-[#1a1208] transition hover:bg-amber-400"
           >
             Entrar com Google
           </button>

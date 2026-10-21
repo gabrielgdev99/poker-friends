@@ -15,8 +15,9 @@ const body = DM_Sans({
 });
 
 export const metadata: Metadata = {
-  title: "Poker Friends",
-  description: "Texas Hold'em com os amigos — salas privadas, fichas e mesa ao vivo.",
+  title: "Poker Friends — mesa da galera",
+  description:
+    "Texas Hold'em com a galera da igreja — salas privadas, bots, chat e boa vibração.",
 };
 
 export default function RootLayout({ children }: LayoutProps<"/">) {

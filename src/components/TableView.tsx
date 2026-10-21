@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useMemo, useRef, useState, useTransition } from "react";
 import { AuthBar } from "@/components/AuthBar";
 import { PlayingCard } from "@/components/PlayingCard";
+import { TableChat } from "@/components/TableChat";
 import type { PublicRoom, Street } from "@/lib/types";
 
 const SEAT_POS = [
@@ -127,12 +128,17 @@ export function TableView({ code }: { code: string }) {
     room.actingSeat !== null &&
     room.players.find((p) => p.id === playerId)?.seat === room.actingSeat;
 
+  const botActing =
+    !!room &&
+    room.status === "playing" &&
+    !!room.players.find((p) => p.seat === room.actingSeat)?.isBot;
+
   useEffect(() => {
     if (!playerId || fatal || !room) return;
-    const ms = myTurn ? 700 : 1200;
+    const ms = myTurn || botActing ? 500 : 1200;
     const t = setInterval(refresh, ms);
     return () => clearInterval(t);
-  }, [playerId, refresh, myTurn, fatal, room]);
+  }, [playerId, refresh, myTurn, botActing, fatal, room]);
 
   useEffect(() => {
     const t = setInterval(() => setNow(Date.now()), 200);
@@ -168,15 +174,17 @@ export function TableView({ code }: { code: string }) {
 
   const timer = useMemo(() => {
     if (!room?.turnDeadline || room.status !== "playing") {
-      return { left: 0, pct: 0, total: room?.turnSeconds ?? 18 };
+      return { left: 0, pct: 0, total: room?.turnSeconds ?? 18, thinking: false };
     }
     const serverAligned = now - clockSkew;
     const leftMs = Math.max(0, room.turnDeadline - serverAligned);
-    const total = room.turnSeconds || 18;
+    const actorBot = !!room.players.find((p) => p.seat === room.actingSeat)?.isBot;
+    const total = actorBot ? 3 : room.turnSeconds || 18;
     return {
       left: Math.ceil(leftMs / 1000),
       pct: Math.min(100, (leftMs / (total * 1000)) * 100),
       total,
+      thinking: actorBot,
     };
   }, [room, now, clockSkew]);
 
@@ -225,8 +233,8 @@ export function TableView({ code }: { code: string }) {
   return (
     <div className="relative flex min-h-screen flex-col text-amber-50">
       {showToast && myTurn && (
-        <div className="sua-vez-toast pointer-events-none fixed left-1/2 top-20 z-50 rounded bg-amber-500 px-5 py-2 font-[family-name:var(--font-display)] text-lg text-emerald-950 shadow-lg">
-          Sua vez!
+        <div className="sua-vez-toast pointer-events-none fixed left-1/2 top-20 z-50 rounded bg-amber-500 px-5 py-2 font-[family-name:var(--font-display)] text-lg text-[#1a1208] shadow-lg">
+          Sua vez, irmão! 🃏
         </div>
       )}
 
@@ -235,13 +243,13 @@ export function TableView({ code }: { code: string }) {
           <p className="font-[family-name:var(--font-display)] text-xl tracking-tight text-amber-300 sm:text-2xl">
             Poker Friends
           </p>
-          <p className="text-[0.65rem] uppercase tracking-[0.22em] text-emerald-200/50">
-            Sala {room.code}
+          <p className="text-[0.65rem] uppercase tracking-[0.22em] text-amber-200/45">
+            Galera da igreja · Sala {room.code}
             {streetLabel ? ` · ${streetLabel}` : ""}
             {room.handNumber > 0 ? ` · #${room.handNumber}` : ""}
           </p>
         </div>
-        <div className="flex flex-col items-end gap-1.5 text-right text-xs text-emerald-100/60 sm:text-sm">
+        <div className="flex flex-col items-end gap-1.5 text-right text-xs text-amber-100/55 sm:text-sm">
           <AuthBar />
           <p>
             Blinds {room.smallBlind}/{room.bigBlind} · timer {room.turnSeconds}s
@@ -254,15 +262,28 @@ export function TableView({ code }: { code: string }) {
         </div>
       </header>
 
+      {room.myHandHint && room.status === "playing" && !me?.folded && (
+        <div className="relative z-20 mx-auto w-full max-w-4xl px-4 sm:px-8">
+          <p className="mb-2 rounded border border-amber-600/30 bg-[#2a1c0a]/80 px-3 py-2 text-center text-sm text-amber-100">
+            Você tem: <strong className="text-amber-300">{room.myHandHint}</strong>
+          </p>
+        </div>
+      )}
+
       {/* turn bar */}
       {room.status === "playing" && room.actingSeat !== null && (
         <div className="relative z-20 mx-auto w-full max-w-4xl px-4 sm:px-8">
-          <div className="mb-1 flex items-center justify-between text-xs text-emerald-100/70">
+          <div className="mb-1 flex items-center justify-between text-xs text-amber-100/70">
             <span>
+              {timer.thinking ? "🤔 " : ""}
               Vez de <strong className="text-amber-200">{actingName}</strong>
-              {myTurn ? " (você)" : ""}
+              {myTurn ? " (você)" : timer.thinking ? " — pensando…" : ""}
             </span>
-            <span className={timer.left <= 5 ? "text-rose-300" : "text-amber-200"}>
+            <span
+              className={
+                !timer.thinking && timer.left <= 5 ? "text-rose-300" : "text-amber-200"
+              }
+            >
               {timer.left}s
             </span>
           </div>
@@ -277,10 +298,10 @@ export function TableView({ code }: { code: string }) {
         </div>
       )}
 
-      <div className="relative mx-auto w-full max-w-4xl flex-1 px-2 pb-44 pt-2 sm:px-6">
-        <div className="relative mx-auto aspect-[4/3] w-full max-h-[62vh] min-h-[300px]">
-          <div className="absolute inset-[6%] rounded-[50%] border-[10px] border-[#3d2a14] bg-[radial-gradient(ellipse_at_center,#1a5c3a_0%,#0d3d28_45%,#062018_100%)] shadow-[inset_0_0_80px_rgba(0,0,0,0.45),0_20px_60px_rgba(0,0,0,0.5)] sm:inset-[8%]">
-            <div className="absolute inset-[5%] rounded-[50%] border border-emerald-400/15" />
+      <div className="relative mx-auto flex w-full max-w-5xl flex-1 flex-col gap-3 px-2 pb-52 pt-2 sm:px-6 lg:flex-row lg:items-start">
+        <div className="relative mx-auto aspect-[4/3] w-full max-h-[58vh] min-h-[280px] flex-1">
+          <div className="absolute inset-[6%] rounded-[50%] border-[10px] border-[#4a3218] bg-[radial-gradient(ellipse_at_center,#2a6b3e_0%,#1a4530_40%,#0f2418_100%)] shadow-[inset_0_0_80px_rgba(0,0,0,0.4),0_20px_60px_rgba(0,0,0,0.45)] sm:inset-[8%]">
+            <div className="absolute inset-[5%] rounded-[50%] border border-amber-400/15" />
           </div>
 
           <div className="absolute left-1/2 top-[42%] z-10 flex w-[90%] -translate-x-1/2 -translate-y-1/2 flex-col items-center gap-2 sm:top-1/2">
@@ -314,8 +335,8 @@ export function TableView({ code }: { code: string }) {
                   );
                 })}
                 {room.autoStartNext && room.showdownUntil && (
-                  <p className="mt-1 text-[0.65rem] text-emerald-100/50">
-                    Próxima mão em breve…
+                  <p className="mt-1 text-[0.65rem] text-amber-100/50">
+                    Próxima mão já já — amém e embaralha 🙏
                   </p>
                 )}
               </div>
@@ -420,11 +441,15 @@ export function TableView({ code }: { code: string }) {
             );
           })}
         </div>
+
+        <div className="w-full shrink-0 lg:w-72 lg:pt-4">
+          <TableChat code={code} room={room} onRoom={setRoom} />
+        </div>
       </div>
 
-      <footer className="fixed bottom-0 left-0 right-0 z-30 border-t border-emerald-800/50 bg-[#04150f]/95 px-3 py-3 backdrop-blur-md sm:px-8 sm:py-4">
+      <footer className="fixed bottom-0 left-0 right-0 z-30 border-t border-amber-900/40 bg-[#1a1208]/95 px-3 py-3 backdrop-blur-md sm:px-8 sm:py-4">
         {error && <p className="mb-2 text-sm text-rose-300">{error}</p>}
-        <div className="mx-auto flex max-w-4xl flex-col gap-2">
+        <div className="mx-auto flex max-w-5xl flex-col gap-2">
           {isHost && room.status !== "playing" && (
             <div className="flex flex-wrap items-center gap-2">
               <button
@@ -433,7 +458,7 @@ export function TableView({ code }: { code: string }) {
                 onClick={() => api("bots", { action: "add" })}
                 className="border border-amber-200/40 px-3 py-2 text-sm text-amber-100 hover:bg-amber-500/10 disabled:opacity-40"
               >
-                Adicionar bot
+                Chamar irmão bot 🤖
               </button>
               {room.players
                 .filter((p) => p.isBot)

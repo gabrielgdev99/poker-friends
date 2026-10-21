@@ -5,6 +5,19 @@ import type { Card, Player, PlayerAction, Room } from "@/lib/types";
 
 const MAX_SEATS = 10;
 
+const BOT_NAMES = [
+  "Irmão Bot",
+  "Diácono Bluff",
+  "Tia Coral",
+  "Obreiro All-in",
+  "Pastor Check",
+  "Irmã Sequência",
+  "Zelador Fold",
+  "Louvor Raise",
+  "Café da Paz",
+  "Amém Call",
+];
+
 function holeStrength(hole: Card[] | null): number {
   if (!hole || hole.length < 2) return 0.2;
   const [a, b] = hole;
@@ -64,31 +77,38 @@ export function decideBotAction(
   return { action: "call" };
 }
 
-/** Keep acting while the current seat is a bot. Returns true if the room changed. */
+/**
+ * Act for the current bot only after its think deadline.
+ * One bot action per tick so polling shows the pause.
+ */
 export function advanceBots(room: Room): boolean {
-  let changed = false;
-  for (let i = 0; i < 48; i++) {
-    if (room.status !== "playing" || room.actingSeat === null) break;
-    const actor = room.players.find((p) => p.seat === room.actingSeat);
-    if (!actor?.isBot) break;
+  if (room.status !== "playing" || room.actingSeat === null) return false;
+  const actor = room.players.find((p) => p.seat === room.actingSeat);
+  if (!actor?.isBot) return false;
 
-    const decision = decideBotAction(room, actor);
-    try {
-      applyAction(room, actor.id, decision.action, decision.amount);
-    } catch {
-      // Never hang the hand
-      try {
-        const toCall = room.currentBet - actor.bet;
-        if (toCall <= 0) applyAction(room, actor.id, "check");
-        else applyAction(room, actor.id, "fold");
-      } catch {
-        break;
-      }
-    }
-    changed = true;
+  // Still “thinking”
+  if (room.turnDeadline && Date.now() < room.turnDeadline) {
+    return false;
   }
-  if (changed && room.status === "playing") resetTurnClock(room);
-  return changed;
+
+  const decision = decideBotAction(room, actor);
+  try {
+    applyAction(room, actor.id, decision.action, decision.amount);
+  } catch {
+    try {
+      const toCall = room.currentBet - actor.bet;
+      if (toCall <= 0) applyAction(room, actor.id, "check");
+      else applyAction(room, actor.id, "fold");
+    } catch {
+      return false;
+    }
+  }
+  // applyAction already resetTurnClock for the next actor
+  if (room.status === "playing" && room.actingSeat !== null) {
+    const next = room.players.find((p) => p.seat === room.actingSeat);
+    if (next?.isBot && !room.turnDeadline) resetTurnClock(room);
+  }
+  return true;
 }
 
 export function addBot(room: Room): Player {
@@ -105,16 +125,14 @@ export function addBot(room: Room): Player {
   }
   if (seat === null) throw new Error("Mesa cheia (10 assentos)");
 
-  const nums = room.players
-    .filter((p) => p.isBot)
-    .map((p) => {
-      const m = /^Bot (\d+)$/.exec(p.nickname);
-      return m ? Number(m[1]) : 0;
-    });
-  const n = (nums.length ? Math.max(...nums) : 0) + 1;
+  const used = new Set(room.players.map((p) => p.nickname));
+  const nickname =
+    BOT_NAMES.find((n) => !used.has(n)) ??
+    `Irmão Bot ${room.players.filter((p) => p.isBot).length + 1}`;
+
   const bot: Player = {
-    id: `bot-${Date.now()}-${n}`,
-    nickname: `Bot ${n}`,
+    id: `bot-${Date.now()}-${seat}`,
+    nickname,
     seat,
     chips: 1000,
     hole: null,
@@ -125,7 +143,7 @@ export function addBot(room: Room): Player {
     isBot: true,
   };
   room.players.push(bot);
-  room.lastAction = `${bot.nickname} sentou no assento ${seat + 1}`;
+  room.lastAction = `${bot.nickname} sentou — “a paz do Senhor e… all-in?”`;
   room.updatedAt = Date.now();
   return bot;
 }
@@ -135,6 +153,6 @@ export function removeBot(room: Room, botId: string): void {
   const bot = room.players.find((p) => p.id === botId);
   if (!bot?.isBot) throw new Error("Bot não encontrado");
   room.players = room.players.filter((p) => p.id !== botId);
-  room.lastAction = `${bot.nickname} removido`;
+  room.lastAction = `${bot.nickname} foi pra casa (com bênção)`;
   room.updatedAt = Date.now();
 }
