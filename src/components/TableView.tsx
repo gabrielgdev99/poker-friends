@@ -1,6 +1,7 @@
 "use client";
 
 import { useSession } from "next-auth/react";
+import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useMemo, useRef, useState, useTransition } from "react";
 import { AuthBar } from "@/components/AuthBar";
 import { PlayingCard } from "@/components/PlayingCard";
@@ -32,10 +33,12 @@ function formatChips(n: number) {
 }
 
 export function TableView({ code }: { code: string }) {
+  const router = useRouter();
   const { data: session, status } = useSession();
   const playerId = session?.user?.id ?? "";
   const [room, setRoom] = useState<PublicRoom | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [fatal, setFatal] = useState(false);
   const [betInput, setBetInput] = useState("");
   const [pending, start] = useTransition();
   const [now, setNow] = useState(() => Date.now());
@@ -44,16 +47,9 @@ export function TableView({ code }: { code: string }) {
   const prevPot = useRef(0);
   const [potBump, setPotBump] = useState(0);
   const wasMyTurn = useRef(false);
+  const joinStarted = useRef(false);
 
-  const refresh = useCallback(async () => {
-    if (!playerId) return;
-    const res = await fetch(`/api/rooms/${code}`);
-    if (!res.ok) {
-      setError(res.status === 401 ? "Faça login com Google" : "Sala não encontrada");
-      return;
-    }
-    const data = await res.json();
-    const r = data.room as PublicRoom;
+  const applyRoom = useCallback((r: PublicRoom) => {
     if (typeof r.serverNow === "number") {
       setClockSkew(Date.now() - r.serverNow);
     }
@@ -62,17 +58,68 @@ export function TableView({ code }: { code: string }) {
       setPotBump((x) => x + 1);
     }
     setRoom(r);
-  }, [code, playerId]);
+    setError(null);
+    setFatal(false);
+  }, []);
+
+  const leaveMissingRoom = useCallback(
+    (msg: string) => {
+      setFatal(true);
+      setError(msg);
+      setRoom(null);
+      // Stop “Entrando na mesa…” loop — send user home with context
+      router.replace(`/?erro=sala&code=${encodeURIComponent(code)}`);
+    },
+    [router, code],
+  );
+
+  const refresh = useCallback(async () => {
+    if (!playerId || fatal) return;
+    const res = await fetch(`/api/rooms/${code}`);
+    if (!res.ok) {
+      if (res.status === 404) {
+        leaveMissingRoom("Sala não encontrada (pode ter expirado ou o Redis não persistiu).");
+        return;
+      }
+      if (res.status === 401) {
+        setFatal(true);
+        setError("Faça login com Google");
+        return;
+      }
+      const data = await res.json().catch(() => ({}));
+      setError(data.error ?? "Erro ao atualizar a sala");
+      return;
+    }
+    const data = await res.json();
+    applyRoom(data.room as PublicRoom);
+  }, [code, playerId, fatal, leaveMissingRoom, applyRoom]);
 
   useEffect(() => {
-    if (!playerId) return;
+    if (!playerId || joinStarted.current || fatal) return;
+    joinStarted.current = true;
     const nick = session?.user?.name?.slice(0, 16) || "Jogador";
-    fetch(`/api/rooms/${code}/join`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ nickname: nick }),
-    }).then(() => refresh());
-  }, [playerId, code, refresh, session?.user?.name]);
+    (async () => {
+      const res = await fetch(`/api/rooms/${code}/join`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ nickname: nick }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        if (res.status === 404) {
+          leaveMissingRoom(
+            data.error ??
+              "Sala não encontrada. Crie de novo — na Vercel o Redis precisa estar configurado.",
+          );
+          return;
+        }
+        setFatal(true);
+        setError(data.error ?? "Falha ao entrar na sala");
+        return;
+      }
+      applyRoom(data.room as PublicRoom);
+    })();
+  }, [playerId, code, session?.user?.name, fatal, leaveMissingRoom, applyRoom]);
 
   const myTurn =
     !!room &&
@@ -81,11 +128,11 @@ export function TableView({ code }: { code: string }) {
     room.players.find((p) => p.id === playerId)?.seat === room.actingSeat;
 
   useEffect(() => {
-    if (!playerId) return;
+    if (!playerId || fatal || !room) return;
     const ms = myTurn ? 700 : 1200;
     const t = setInterval(refresh, ms);
     return () => clearInterval(t);
-  }, [playerId, refresh, myTurn]);
+  }, [playerId, refresh, myTurn, fatal, room]);
 
   useEffect(() => {
     const t = setInterval(() => setNow(Date.now()), 200);
@@ -133,7 +180,26 @@ export function TableView({ code }: { code: string }) {
     };
   }, [room, now, clockSkew]);
 
-  if (status === "loading" || !room) {
+  if (status === "loading") {
+    return (
+      <div className="flex min-h-screen items-center justify-center text-amber-100/70">
+        Entrando na mesa…
+      </div>
+    );
+  }
+
+  if (fatal || (!room && error)) {
+    return (
+      <div className="flex min-h-screen flex-col items-center justify-center gap-4 px-6 text-center">
+        <p className="text-rose-300">{error ?? "Não foi possível abrir a sala."}</p>
+        <a href="/" className="bg-amber-500 px-5 py-2.5 text-emerald-950 hover:bg-amber-400">
+          Voltar ao início
+        </a>
+      </div>
+    );
+  }
+
+  if (!room) {
     return (
       <div className="flex min-h-screen items-center justify-center text-amber-100/70">
         Entrando na mesa…
