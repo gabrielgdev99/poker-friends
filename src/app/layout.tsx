@@ -1,15 +1,16 @@
 import type { Metadata } from "next";
-import { DM_Sans, Fraunces } from "next/font/google";
+import { Fraunces, Figtree } from "next/font/google";
 import { Providers } from "@/components/Providers";
 import "./globals.css";
 
+/** Felt & Clay — soft serif display + clean modern UI (not Inter). */
 const display = Fraunces({
   variable: "--font-display",
   subsets: ["latin"],
   axes: ["SOFT", "WONK", "opsz"],
 });
 
-const body = DM_Sans({
+const body = Figtree({
   variable: "--font-body",
   subsets: ["latin"],
 });

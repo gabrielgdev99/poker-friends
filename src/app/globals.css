@@ -1,15 +1,33 @@
 @import "tailwindcss";
 
+/* ═══════════════════════════════════════════════════════════
+   Felt & Clay — Poker Friends design language
+   Olive felt night + clay chip pottery + beeswax gold.
+   Not purple sludge. Not cream/terracotta cliché. Not broadsheet.
+   ═══════════════════════════════════════════════════════════ */
+
 :root {
-  /* Warm church-hall night: wood + olive + candle gold (not purple) */
-  --felt-deep: #120c06;
-  --felt: #1a4530;
-  --felt-lit: #2a6b3e;
-  --amber: #f0b429;
-  --cream: #f7f0e4;
-  --wood: #4a3218;
-  --background: var(--felt-deep);
-  --foreground: var(--cream);
+  --fc-felt-void: #0a100c;
+  --fc-felt-deep: #122018;
+  --fc-felt: #1a3d2c;
+  --fc-felt-lit: #2d5c42;
+  --fc-clay: #8c6a4a;
+  --fc-clay-light: #c4a882;
+  --fc-wax: #e8b84a;
+  --fc-wax-hot: #f5c84a;
+  --fc-ink: #f2ebe0;
+  --fc-ink-mute: rgba(242, 235, 224, 0.55);
+  --fc-wood: #3a2818;
+  --fc-shadow: rgba(4, 8, 6, 0.55);
+
+  --felt-deep: var(--fc-felt-void);
+  --felt: var(--fc-felt);
+  --felt-lit: var(--fc-felt-lit);
+  --amber: var(--fc-wax);
+  --cream: var(--fc-ink);
+  --wood: var(--fc-wood);
+  --background: var(--fc-felt-void);
+  --foreground: var(--fc-ink);
 }
 
 @theme inline {
@@ -22,23 +40,25 @@
 body {
   background: var(--background);
   color: var(--foreground);
-  font-family: var(--font-body), Georgia, serif;
+  font-family: var(--font-body), system-ui, sans-serif;
 }
 
-@keyframes drift {
+/* ── Atmosphere ── */
+
+@keyframes fc-drift {
   0%,
   100% {
     transform: translate3d(0, 0, 0) scale(1);
   }
   50% {
-    transform: translate3d(2%, -1.5%, 0) scale(1.05);
+    transform: translate3d(1.5%, -1%, 0) scale(1.04);
   }
 }
 
-@keyframes rise {
+@keyframes fc-rise {
   from {
     opacity: 0;
-    transform: translateY(18px);
+    transform: translateY(20px);
   }
   to {
     opacity: 1;
@@ -46,15 +66,202 @@ body {
   }
 }
 
-@keyframes shimmer {
+@keyframes fc-glow {
   0%,
   100% {
-    opacity: 0.35;
+    opacity: 0.4;
   }
   50% {
-    opacity: 0.55;
+    opacity: 0.65;
   }
 }
+
+@keyframes fc-chip-in {
+  from {
+    opacity: 0;
+    transform: translateY(10px) scale(0.9);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+.hero-atmosphere {
+  animation: fc-drift 26s ease-in-out infinite;
+}
+
+.hero-copy {
+  animation: fc-rise 0.85s ease-out both;
+}
+
+.hero-glow {
+  animation: fc-glow 7s ease-in-out infinite;
+}
+
+.fc-lobby-in {
+  animation: fc-rise 0.7s ease-out both;
+}
+
+.fc-lobby-in-delay {
+  animation: fc-rise 0.75s ease-out 0.12s both;
+}
+
+/* ── Felt & Clay poker chips ── */
+
+.fc-chip {
+  --fc-chip-body: #8b2e2e;
+  --fc-chip-stripe: #f0d4d0;
+  --fc-chip-face: #5c1e1e;
+  --fc-chip-ink: #fceceb;
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  flex-shrink: 0;
+  background:
+    radial-gradient(circle at 32% 28%, rgba(255, 255, 255, 0.38) 0%, transparent 42%),
+    radial-gradient(circle at 70% 78%, rgba(0, 0, 0, 0.35) 0%, transparent 50%),
+    repeating-conic-gradient(
+      from 8deg,
+      var(--fc-chip-stripe) 0deg 11deg,
+      var(--fc-chip-body) 11deg 22deg
+    );
+  box-shadow:
+    inset 0 1.5px 2px rgba(255, 255, 255, 0.35),
+    inset 0 -2px 3px rgba(0, 0, 0, 0.45),
+    0 1px 0 rgba(255, 255, 255, 0.12),
+    0 3px 6px var(--fc-shadow);
+}
+
+.fc-chip::before {
+  content: "";
+  position: absolute;
+  inset: 18%;
+  border-radius: 50%;
+  background:
+    radial-gradient(circle at 40% 35%, rgba(255, 255, 255, 0.12), transparent 55%),
+    var(--fc-chip-face);
+  box-shadow:
+    inset 0 1px 2px rgba(0, 0, 0, 0.35),
+    0 0 0 1.5px color-mix(in srgb, var(--fc-chip-stripe) 55%, transparent);
+}
+
+.fc-chip__face {
+  position: relative;
+  z-index: 1;
+  font-family: var(--font-display), Georgia, serif;
+  font-weight: 600;
+  font-size: 0.42em;
+  line-height: 1;
+  letter-spacing: -0.02em;
+  color: var(--fc-chip-ink);
+  text-shadow: 0 1px 1px rgba(0, 0, 0, 0.35);
+}
+
+.fc-chip--sm {
+  width: 0.85rem;
+  height: 0.85rem;
+  font-size: 0.85rem;
+}
+
+.fc-chip--sm::before {
+  inset: 22%;
+  box-shadow: inset 0 1px 1px rgba(0, 0, 0, 0.3), 0 0 0 1px color-mix(in srgb, var(--fc-chip-stripe) 40%, transparent);
+}
+
+.fc-chip--sm .fc-chip__face {
+  font-size: 0.28em;
+}
+
+.fc-chip--md {
+  width: 1.15rem;
+  height: 1.15rem;
+  font-size: 1.15rem;
+}
+
+.fc-chip--lg {
+  width: 1.65rem;
+  height: 1.65rem;
+  font-size: 1.65rem;
+}
+
+@media (min-width: 640px) {
+  .fc-chip--sm {
+    width: 1rem;
+    height: 1rem;
+    font-size: 1rem;
+  }
+  .fc-chip--md {
+    width: 1.35rem;
+    height: 1.35rem;
+    font-size: 1.35rem;
+  }
+  .fc-chip--lg {
+    width: 2rem;
+    height: 2rem;
+    font-size: 2rem;
+  }
+}
+
+.fc-chip-stack {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.2rem;
+}
+
+.fc-chip-stack__unit {
+  display: block;
+  line-height: 0;
+  filter: drop-shadow(0 1px 1px rgba(0, 0, 0, 0.35));
+}
+
+.fc-chip-stack__label {
+  border-radius: 999px;
+  background: rgba(0, 0, 0, 0.55);
+  padding: 0.1rem 0.45rem;
+  font-size: 0.6rem;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  color: var(--fc-ink);
+  letter-spacing: 0.02em;
+}
+
+.fc-chip-stack__label--lg {
+  font-size: 0.75rem;
+  padding: 0.15rem 0.55rem;
+}
+
+.fc-chip-showcase {
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  gap: 0.35rem;
+  animation: fc-chip-in 0.9s ease-out 0.15s both;
+}
+
+.fc-chip-showcase__item {
+  display: block;
+  filter: drop-shadow(0 6px 12px rgba(0, 0, 0, 0.45));
+}
+
+.fc-chip-showcase .fc-chip--lg {
+  width: 3.25rem;
+  height: 3.25rem;
+  font-size: 3.25rem;
+}
+
+@media (min-width: 640px) {
+  .fc-chip-showcase .fc-chip--lg {
+    width: 3.75rem;
+    height: 3.75rem;
+    font-size: 3.75rem;
+  }
+}
+
+/* ── Table motion (kept) ── */
 
 @keyframes deal-in {
   from {
@@ -82,10 +289,10 @@ body {
 @keyframes turn-pulse {
   0%,
   100% {
-    box-shadow: 0 0 0 0 rgba(240, 180, 41, 0.45);
+    box-shadow: 0 0 0 0 rgba(232, 184, 74, 0.45);
   }
   50% {
-    box-shadow: 0 0 0 8px rgba(240, 180, 41, 0);
+    box-shadow: 0 0 0 8px rgba(232, 184, 74, 0);
   }
 }
 
@@ -100,16 +307,15 @@ body {
   }
 }
 
-.hero-atmosphere {
-  animation: drift 22s ease-in-out infinite;
-}
-
-.hero-copy {
-  animation: rise 0.9s ease-out both;
-}
-
-.hero-glow {
-  animation: shimmer 6s ease-in-out infinite;
+@keyframes seat-bubble-in {
+  from {
+    opacity: 0;
+    transform: translate(-50%, 6px) scale(0.92);
+  }
+  to {
+    opacity: 1;
+    transform: translate(-50%, 0) scale(1);
+  }
 }
 
 .card-deal {
@@ -126,17 +332,6 @@ body {
 
 .sua-vez-toast {
   animation: toast-in 0.35s ease-out both;
-}
-
-@keyframes seat-bubble-in {
-  from {
-    opacity: 0;
-    transform: translate(-50%, 6px) scale(0.92);
-  }
-  to {
-    opacity: 1;
-    transform: translate(-50%, 0) scale(1);
-  }
 }
 
 .seat-chat-bubble {

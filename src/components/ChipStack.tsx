@@ -1,31 +1,88 @@
 "use client";
 
-/** Classic chip denominations (high → low). */
-const DENOMS = [
-  { value: 500, color: "#c026d3", ring: "#f0abfc", label: "500" },
-  { value: 100, color: "#111827", ring: "#f9fafb", label: "100" },
-  { value: 25, color: "#16a34a", ring: "#bbf7d0", label: "25" },
-  { value: 10, color: "#2563eb", ring: "#bfdbfe", label: "10" },
-  { value: 5, color: "#dc2626", ring: "#fecaca", label: "5" },
-  { value: 1, color: "#e8e0d0", ring: "#78716c", label: "1" },
-] as const;
+import type { CSSProperties } from "react";
 
-function breakChips(amount: number): { value: number; color: string; ring: string; n: number }[] {
+/**
+ * Felt & Clay — premium clay poker chips.
+ * Edge stripes + face denom + stacked depth. Used for pot & seat bets.
+ */
+
+type ChipTone = {
+  value: number;
+  /** CSS custom props set on .fc-chip */
+  body: string;
+  stripe: string;
+  face: string;
+  ink: string;
+  short: string;
+};
+
+const DENOMS: ChipTone[] = [
+  {
+    value: 500,
+    body: "#5c3d2e",
+    stripe: "#e8d5b5",
+    face: "#3d281c",
+    ink: "#f3e6d0",
+    short: "5C",
+  },
+  {
+    value: 100,
+    body: "#1c1c1e",
+    stripe: "#f0ebe3",
+    face: "#0e0e10",
+    ink: "#f5f0e8",
+    short: "100",
+  },
+  {
+    value: 25,
+    body: "#1f5c3a",
+    stripe: "#d4e8d8",
+    face: "#143d26",
+    ink: "#e8f5ec",
+    short: "25",
+  },
+  {
+    value: 10,
+    body: "#1e3a5f",
+    stripe: "#c5d8f0",
+    face: "#132840",
+    ink: "#e8f0fa",
+    short: "10",
+  },
+  {
+    value: 5,
+    body: "#8b2e2e",
+    stripe: "#f0d4d0",
+    face: "#5c1e1e",
+    ink: "#fceceb",
+    short: "5",
+  },
+  {
+    value: 1,
+    body: "#c4b49a",
+    stripe: "#5a4a38",
+    face: "#ebe0cc",
+    ink: "#3a2e22",
+    short: "1",
+  },
+];
+
+function breakChips(amount: number): { tone: ChipTone; n: number }[] {
   let left = Math.max(0, Math.floor(amount));
-  const out: { value: number; color: string; ring: string; n: number }[] = [];
-  for (const d of DENOMS) {
-    if (left < d.value) continue;
-    const n = Math.min(8, Math.floor(left / d.value)); // cap stack height per color
+  const out: { tone: ChipTone; n: number }[] = [];
+  for (const tone of DENOMS) {
+    if (left < tone.value) continue;
+    const n = Math.min(7, Math.floor(left / tone.value));
     if (n > 0) {
-      out.push({ value: d.value, color: d.color, ring: d.ring, n });
-      left -= n * d.value;
+      out.push({ tone, n });
+      left -= n * tone.value;
     }
   }
-  // remainder as 1s if any
   if (left > 0) {
-    const ones = out.find((x) => x.value === 1);
-    if (ones) ones.n = Math.min(8, ones.n + left);
-    else out.push({ value: 1, color: "#e8e0d0", ring: "#78716c", n: Math.min(8, left) });
+    const ones = out.find((x) => x.tone.value === 1);
+    if (ones) ones.n = Math.min(7, ones.n + left);
+    else out.push({ tone: DENOMS[DENOMS.length - 1], n: Math.min(7, left) });
   }
   return out;
 }
@@ -33,6 +90,35 @@ function breakChips(amount: number): { value: number; color: string; ring: strin
 function formatAmt(n: number) {
   if (n >= 1000) return `${(n / 1000).toFixed(n % 1000 === 0 ? 0 : 1)}k`;
   return String(n);
+}
+
+function PokerChip({
+  tone,
+  size,
+  showFace,
+}: {
+  tone: ChipTone;
+  size: "sm" | "md" | "lg";
+  showFace: boolean;
+}) {
+  const dim =
+    size === "lg" ? "fc-chip--lg" : size === "sm" ? "fc-chip--sm" : "fc-chip--md";
+  return (
+    <span
+      className={`fc-chip ${dim}`}
+      style={
+        {
+          "--fc-chip-body": tone.body,
+          "--fc-chip-stripe": tone.stripe,
+          "--fc-chip-face": tone.face,
+          "--fc-chip-ink": tone.ink,
+        } as CSSProperties
+      }
+      aria-hidden
+    >
+      {showFace && <span className="fc-chip__face">{tone.short}</span>}
+    </span>
+  );
 }
 
 export function ChipStack({
@@ -47,48 +133,59 @@ export function ChipStack({
 }) {
   if (amount <= 0) return null;
   const stacks = breakChips(amount);
-  const chip =
-    size === "lg" ? "h-4 w-4 sm:h-5 sm:w-5" : size === "sm" ? "h-2.5 w-2.5" : "h-3 w-3 sm:h-3.5 sm:w-3.5";
-  const gap = size === "lg" ? "gap-1" : "gap-0.5";
+  const step = size === "lg" ? 4 : size === "sm" ? 2.5 : 3.25;
+  const gap = size === "lg" ? "gap-1.5" : "gap-1";
 
   return (
-    <div className="flex flex-col items-center gap-0.5" title={`${amount} fichas`}>
+    <div className="fc-chip-stack" title={`${amount} fichas`}>
       <div className={`flex items-end ${gap}`}>
-        {stacks.map((s) => (
+        {stacks.map(({ tone, n }) => (
           <div
-            key={s.value}
+            key={tone.value}
             className="relative flex flex-col-reverse items-center"
-            style={{ height: `${Math.max(s.n, 1) * (size === "lg" ? 5 : size === "sm" ? 3 : 4) + 4}px` }}
+            style={{ height: `${n * step + (size === "lg" ? 22 : size === "sm" ? 12 : 16)}px` }}
           >
-            {Array.from({ length: s.n }).map((_, i) => (
+            {Array.from({ length: n }).map((_, i) => (
               <span
                 key={i}
-                className={`${chip} rounded-full border shadow-sm`}
+                className="fc-chip-stack__unit"
                 style={{
-                  background: s.color,
-                  borderColor: s.ring,
-                  marginBottom: i === 0 ? 0 : size === "sm" ? -1.5 : -2,
-                  zIndex: s.n - i,
+                  marginBottom: i === 0 ? 0 : -step * 0.55,
+                  zIndex: n - i,
                 }}
-              />
+              >
+                <PokerChip tone={tone} size={size} showFace={i === n - 1} />
+              </span>
             ))}
           </div>
         ))}
       </div>
-      <span
-        className={`rounded-full bg-black/55 px-1.5 font-semibold tabular-nums text-amber-100 ${
-          size === "lg" ? "text-xs sm:text-sm" : "text-[0.6rem] sm:text-[0.65rem]"
-        }`}
-      >
+      <span className={`fc-chip-stack__label ${size === "lg" ? "fc-chip-stack__label--lg" : ""}`}>
         {label ?? formatAmt(amount)}
       </span>
     </div>
   );
 }
 
+/** Decorative chip row for lobby hero (Felt & Clay). */
+export function ChipShowcase({ className = "" }: { className?: string }) {
+  return (
+    <div className={`fc-chip-showcase ${className}`} aria-hidden>
+      {[DENOMS[4], DENOMS[3], DENOMS[2], DENOMS[1]].map((tone, i) => (
+        <span
+          key={tone.value}
+          className="fc-chip-showcase__item"
+          style={{ transform: `translateY(${(i % 2) * 6}px) rotate(${-8 + i * 5}deg)` }}
+        >
+          <PokerChip tone={tone} size="lg" showFace />
+        </span>
+      ))}
+    </div>
+  );
+}
+
 /** Offset chip bet toward table center from a seat. */
 export function seatBetOffset(seat: number): { top: string; left: string } {
-  // Seat indices match SEAT_POS oval; nudge inward
   const inward: { top: string; left: string }[] = [
     { top: "72%", left: "50%" },
     { top: "62%", left: "72%" },
