@@ -1,9 +1,9 @@
+import { Suspense } from "react";
 import { HomeClient } from "@/components/HomeClient";
 
 export default function Home() {
   return (
     <main className="relative flex min-h-screen flex-col overflow-hidden">
-      {/* full-bleed atmosphere */}
       <div
         aria-hidden
         className="hero-atmosphere pointer-events-none absolute inset-0 bg-[radial-gradient(ellipse_at_20%_20%,#1a5c3a_0%,transparent_50%),radial-gradient(ellipse_at_80%_10%,#3d2a14_0%,transparent_40%),radial-gradient(ellipse_at_50%_100%,#0d3d28_0%,#04150f_70%)]"
@@ -27,16 +27,18 @@ export default function Home() {
             Poker Friends
           </h1>
           <p className="mt-5 max-w-md text-lg text-emerald-100/70 sm:text-xl">
-            Texas Hold&apos;em em casa. Crie uma sala, chame os amigos pelo código e
-            sente na mesa.
+            Texas Hold&apos;em em casa. Entre com Google, crie uma sala e chame os
+            amigos pelo código.
           </p>
         </div>
 
-        <HomeClient />
+        <Suspense fallback={<div className="px-6 text-emerald-100/40">Carregando…</div>}>
+          <HomeClient />
+        </Suspense>
       </div>
 
       <p className="relative z-10 px-6 pb-6 text-xs text-emerald-200/30">
-        Até 10 assentos · polling leve · pronto para Vercel
+        Login Google · até 10 assentos · polling leve · Vercel
       </p>
     </main>
   );

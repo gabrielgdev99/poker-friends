@@ -194,11 +194,17 @@ export function createRoom(code: string, hostId: string, hostNickname: string): 
 }
 
 export function joinRoom(room: Room, playerId: string, nickname: string): Room {
-  if (room.players.some((p) => p.id === playerId)) return room;
+  const existing = room.players.find((p) => p.id === playerId);
+  const nick = nickname.slice(0, 16) || "Jogador";
+  if (existing) {
+    existing.nickname = nick;
+    room.updatedAt = Date.now();
+    return room;
+  }
   if (room.players.length >= MAX_SEATS) throw new Error("Sala cheia");
   room.players.push({
     id: playerId,
-    nickname: nickname.slice(0, 16) || "Jogador",
+    nickname: nick,
     seat: null,
     chips: 1000,
     hole: null,
@@ -207,7 +213,7 @@ export function joinRoom(room: Room, playerId: string, nickname: string): Room {
     allIn: false,
     actedThisRound: false,
   });
-  room.lastAction = `${nickname} entrou`;
+  room.lastAction = `${nick} entrou`;
   room.updatedAt = Date.now();
   return room;
 }

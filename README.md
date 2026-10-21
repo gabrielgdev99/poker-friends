@@ -1,15 +1,21 @@
 # Poker Friends
 
-Texas Hold'em cash-style para jogar com amigos. Salas privadas por código curto, até 10 assentos, UI em português.
+Texas Hold'em cash-style para jogar com amigos. Salas privadas por código curto, até 10 assentos, UI em português. Login com **Google** (Auth.js / NextAuth v5, sessões JWT).
 
 ## Stack
 
 - **Next.js** (App Router) + TypeScript + Tailwind
-- **Persistência:** [Upstash Redis](https://upstash.com) (REST) — serverless-friendly na Vercel
-- **Realtime:** polling HTTP a cada ~1,5s (sem WebSocket / Durable Objects)
-- Fallback **in-memory** se as env vars do Redis não estiverem setadas (ok para `npm run dev` local em um único processo)
+- **Auth.js (NextAuth v5)** + Google OAuth — JWT (sem Postgres para auth)
+- **Persistência de salas:** [Upstash Redis](https://upstash.com) (REST)
+- **Realtime:** polling HTTP ~1,5s (Vercel-friendly)
+- Fallback **in-memory** para salas se Redis não estiver configurado (só local)
 
 ## Como jogar localmente
+
+1. Copie `.env.example` → `.env.local` e preencha Auth + (opcional) Redis.  
+   Segredo e checklist: ver também o doc de env do projeto (`docs/vercel-env.md` no agent store / README abaixo).
+2. Configure o OAuth no Google (redirect local abaixo).
+3. Rode:
 
 ```bash
 npm install
@@ -18,28 +24,50 @@ npm run dev
 
 Abra [http://localhost:3000](http://localhost:3000).
 
-1. Digite um apelido → **Criar sala** (você vira anfitrião no assento 1).
-2. Compartilhe o código de 5 caracteres.
-3. Outro jogador (outra aba/incógnito) → cola o código → **Entrar** → toca em um assento.
-4. Anfitrião → **Iniciar mão** (mín. 2 sentados).
-5. Ações: Fold, Check/Call, Bet/Raise. Botão do dealer, blinds e showdown inclusos.
+1. **Entrar com Google**
+2. Ajuste o apelido (padrão = nome do Google) → **Criar sala**
+3. Compartilhe o código; outro jogador logado entra e senta
+4. Anfitrião → **Iniciar mão** (mín. 2 sentados)
+5. Fold / Check / Call / Bet / Raise
 
-Sem Redis local, o estado vive na memória do processo Node — reiniciar o servidor apaga as salas.
+## Google Cloud (OAuth)
+
+1. [Google Cloud Console](https://console.cloud.google.com/) → **APIs & Services** → **Credentials** → **Create OAuth client ID** (Web application).
+2. **Authorized JavaScript origins**
+   - `http://localhost:3000`
+   - `https://SEU-DOMINIO.vercel.app`
+3. **Authorized redirect URIs** (obrigatório — Auth.js):
+
+   ```
+   {origin}/api/auth/callback/google
+   ```
+
+   Exemplos:
+
+   - `http://localhost:3000/api/auth/callback/google`
+   - `https://SEU-DOMINIO.vercel.app/api/auth/callback/google`
+
+4. Cole Client ID / Secret em `AUTH_GOOGLE_ID` e `AUTH_GOOGLE_SECRET`.
 
 ## Variáveis de ambiente
 
-Crie `.env.local` (e na Vercel → Project Settings → Environment Variables):
-
 | Variável | Obrigatória | Descrição |
 |----------|-------------|-----------|
-| `UPSTASH_REDIS_REST_URL` | Produção | URL REST do banco Upstash |
-| `UPSTASH_REDIS_REST_TOKEN` | Produção | Token REST do Upstash |
-
-Sem essas vars o app usa store em memória (`GET /api/rooms` devolve `{ store: "memory" }`).
+| `AUTH_SECRET` | Sim | Segredo JWT (`openssl rand -base64 32`) |
+| `AUTH_GOOGLE_ID` | Sim | Google OAuth Client ID |
+| `AUTH_GOOGLE_SECRET` | Sim | Google OAuth Client Secret |
+| `AUTH_TRUST_HOST` | Recomendado (`true`) | Necessário na Vercel |
+| `AUTH_URL` | Opcional | Ex.: `http://localhost:3000` |
+| `UPSTASH_REDIS_REST_URL` | Produção | Redis REST URL |
+| `UPSTASH_REDIS_REST_TOKEN` | Produção | Redis REST token |
 
 Exemplo `.env.local`:
 
 ```env
+AUTH_SECRET=gere-com-openssl
+AUTH_TRUST_HOST=true
+AUTH_GOOGLE_ID=xxxxx.apps.googleusercontent.com
+AUTH_GOOGLE_SECRET=xxxxx
 UPSTASH_REDIS_REST_URL=https://xxxxx.upstash.io
 UPSTASH_REDIS_REST_TOKEN=AXxxxx
 ```
@@ -48,10 +76,9 @@ Salas no Redis expiram em **24h** (TTL renovado a cada save).
 
 ## Deploy na Vercel
 
-1. Crie um Redis em [console.upstash.com](https://console.upstash.com) (região perto da Vercel).
-2. Importe o repo no [Vercel](https://vercel.com/new).
-3. Configure `UPSTASH_REDIS_REST_URL` e `UPSTASH_REDIS_REST_TOKEN`.
-4. Deploy. Framework preset: Next.js.
+1. Redis no [Upstash](https://console.upstash.com).
+2. OAuth no Google com redirect `{seu-dominio}/api/auth/callback/google`.
+3. Importe o repo → configure **todas** as env vars → Deploy.
 
 ```bash
 npx vercel
@@ -59,20 +86,20 @@ npx vercel
 
 ## API (resumo)
 
+Todas as rotas de sala (exceto `GET /api/rooms` health) exigem sessão Google.
+
 | Método | Rota | Uso |
 |--------|------|-----|
-| `POST` | `/api/rooms` | Criar sala `{ nickname, playerId? }` |
-| `GET` | `/api/rooms/:code?playerId=` | Estado público (cartas só do viewer / showdown) |
-| `POST` | `/api/rooms/:code/join` | Entrar |
-| `POST` | `/api/rooms/:code/sit` | Sentar `{ playerId, seat }` |
+| `POST` | `/api/rooms` | Criar sala `{ nickname? }` — `playerId` = user Google |
+| `GET` | `/api/rooms/:code` | Estado (cartas só do viewer / showdown) |
+| `POST` | `/api/rooms/:code/join` | Entrar `{ nickname? }` |
+| `POST` | `/api/rooms/:code/sit` | Sentar `{ seat }` |
 | `POST` | `/api/rooms/:code/start` | Anfitrião inicia mão |
-| `POST` | `/api/rooms/:code/action` | `{ playerId, action, amount? }` — fold/check/call/bet/raise |
-
-`playerId` fica em `localStorage` no browser.
+| `POST` | `/api/rooms/:code/action` | `{ action, amount? }` |
 
 ## Limitações do MVP
 
-- Sem autenticação pesada (só apelido + código).
-- Sem rebuy / side pots complexos (all-in curto ok; pot único).
-- Polling, não push — latência ~1–2s, suficiente para jogo em casa.
-- Store memory não escala em multi-instância Vercel — use Upstash em produção.
+- Auth só Google (JWT); sem adapter de banco para usuários.
+- Sem side pots complexos; pot único.
+- Polling ~1–2s.
+- Memory store não escala em multi-instância — use Upstash em produção.

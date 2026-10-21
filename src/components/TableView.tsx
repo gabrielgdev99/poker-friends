@@ -1,8 +1,9 @@
 "use client";
 
+import { useSession } from "next-auth/react";
 import { useCallback, useEffect, useState, useTransition } from "react";
+import { AuthBar } from "@/components/AuthBar";
 import { PlayingCard } from "@/components/PlayingCard";
-import { getOrCreatePlayerId } from "@/lib/player-id";
 import type { PublicRoom } from "@/lib/types";
 
 const SEAT_POS = [
@@ -19,21 +20,18 @@ const SEAT_POS = [
 ];
 
 export function TableView({ code }: { code: string }) {
+  const { data: session, status } = useSession();
+  const playerId = session?.user?.id ?? "";
   const [room, setRoom] = useState<PublicRoom | null>(null);
-  const [playerId, setPlayerId] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [betInput, setBetInput] = useState("");
   const [pending, start] = useTransition();
 
-  useEffect(() => {
-    setPlayerId(getOrCreatePlayerId());
-  }, []);
-
   const refresh = useCallback(async () => {
     if (!playerId) return;
-    const res = await fetch(`/api/rooms/${code}?playerId=${playerId}`);
+    const res = await fetch(`/api/rooms/${code}`);
     if (!res.ok) {
-      setError("Sala não encontrada");
+      setError(res.status === 401 ? "Faça login com Google" : "Sala não encontrada");
       return;
     }
     const data = await res.json();
@@ -42,13 +40,13 @@ export function TableView({ code }: { code: string }) {
 
   useEffect(() => {
     if (!playerId) return;
-    // ensure joined
+    const nick = session?.user?.name?.slice(0, 16) || "Jogador";
     fetch(`/api/rooms/${code}/join`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ playerId, nickname: "Jogador" }),
+      body: JSON.stringify({ nickname: nick }),
     }).then(() => refresh());
-  }, [playerId, code, refresh]);
+  }, [playerId, code, refresh, session?.user?.name]);
 
   useEffect(() => {
     if (!playerId) return;
@@ -62,7 +60,7 @@ export function TableView({ code }: { code: string }) {
       const res = await fetch(`/api/rooms/${code}/${path}`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ playerId, ...body }),
+        body: JSON.stringify(body),
       });
       const data = await res.json();
       if (!res.ok) {
@@ -73,7 +71,7 @@ export function TableView({ code }: { code: string }) {
     });
   }
 
-  if (!room) {
+  if (status === "loading" || !room) {
     return (
       <div className="flex min-h-screen items-center justify-center text-amber-100/70">
         Entrando na mesa…
@@ -99,7 +97,8 @@ export function TableView({ code }: { code: string }) {
             Sala {room.code}
           </p>
         </div>
-        <div className="text-right text-sm text-emerald-100/60">
+        <div className="flex flex-col items-end gap-2 text-right text-sm text-emerald-100/60">
+          <AuthBar />
           <p>
             Blinds {room.smallBlind}/{room.bigBlind}
             {room.handNumber > 0 ? ` · Mão #${room.handNumber}` : ""}
