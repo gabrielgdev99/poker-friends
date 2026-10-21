@@ -1,7 +1,7 @@
 import { RANK_VALUE } from "@/lib/poker/cards";
 import { resetTurnClock } from "@/lib/poker/clock";
 import { applyAction } from "@/lib/poker/engine";
-import type { Card, Player, PlayerAction, Room } from "@/lib/types";
+import type { BotDifficulty, Card, Player, PlayerAction, Room } from "@/lib/types";
 
 const MAX_SEATS = 10;
 
@@ -17,6 +17,62 @@ const BOT_NAMES = [
   "Café da Paz",
   "Amém Call",
 ];
+
+export const BOT_DIFFICULTY_LABEL: Record<BotDifficulty, string> = {
+  easy: "Iniciante",
+  medium: "Médio",
+  hard: "Difícil",
+};
+
+export function parseBotDifficulty(raw: unknown): BotDifficulty {
+  if (raw === "easy" || raw === "medium" || raw === "hard") return raw;
+  if (raw === "iniciante") return "easy";
+  if (raw === "medio" || raw === "médio") return "medium";
+  if (raw === "dificil" || raw === "difícil") return "hard";
+  return "medium";
+}
+
+type DiffTune = {
+  /** Extra willingness to open/bet when free. */
+  aggression: number;
+  /** Fold more often with weak hands facing a bet. */
+  foldWeak: number;
+  /** Raise more often with strong hands. */
+  raiseStrong: number;
+  /** Min strength to call a big bet. */
+  callFloor: number;
+  /** Prefer pot-aware raise sizing. */
+  smartSize: boolean;
+};
+
+function tune(d: BotDifficulty | null | undefined): DiffTune {
+  switch (d) {
+    case "easy":
+      return {
+        aggression: 0.08,
+        foldWeak: 0.35,
+        raiseStrong: 0.18,
+        callFloor: 0.12,
+        smartSize: false,
+      };
+    case "hard":
+      return {
+        aggression: 0.28,
+        foldWeak: 0.78,
+        raiseStrong: 0.55,
+        callFloor: 0.38,
+        smartSize: true,
+      };
+    default:
+      return {
+        aggression: 0.18,
+        foldWeak: 0.58,
+        raiseStrong: 0.38,
+        callFloor: 0.22,
+        smartSize: true,
+      };
+  }
+}
 
 function holeStrength(hole: Card[] | null): number {
   if (!hole || hole.length < 2) return 0.2;
@@ -35,40 +91,60 @@ function holeStrength(hole: Card[] | null): number {
   return Math.min(0.95, Math.max(0.1, s));
 }
 
+function raiseSize(room: Room, player: Player, strength: number, smart: boolean): number {
+  const minTo = room.currentBet === 0 ? room.bigBlind : room.currentBet + room.minRaise;
+  const stackTo = player.bet + player.chips;
+  if (!smart) {
+    const wild = room.bigBlind * (1 + Math.floor(Math.random() * 5));
+    return Math.min(stackTo, Math.max(minTo, player.bet + wild));
+  }
+  const pot = Math.max(room.pot, room.bigBlind * 2);
+  const want =
+    strength > 0.8
+      ? Math.max(minTo, Math.floor(pot * 0.9))
+      : strength > 0.55
+        ? Math.max(minTo, Math.floor(pot * 0.55))
+        : minTo;
+  return Math.min(stackTo, want);
+}
+
 export function decideBotAction(
   room: Room,
   player: Player,
 ): { action: PlayerAction; amount?: number } {
   const toCall = Math.max(0, room.currentBet - player.bet);
   const strength = holeStrength(player.hole);
+  const t = tune(player.botDifficulty);
   const roll = Math.random();
 
   if (toCall <= 0) {
-    if (roll < 0.12 + strength * 0.25 && player.chips > room.bigBlind) {
-      const size = room.bigBlind * (2 + Math.floor(Math.random() * 3));
-      const raiseTo = Math.min(player.bet + player.chips, Math.max(room.bigBlind, size));
+    if (roll < t.aggression + strength * 0.35 && player.chips > room.bigBlind) {
+      const raiseTo = raiseSize(room, player, strength, t.smartSize);
       return { action: "bet", amount: raiseTo };
     }
     return { action: "check" };
   }
 
-  const cheap = toCall <= room.bigBlind * 2;
-  if (!cheap && strength < 0.35 && roll < 0.65) {
+  const potOddsPressure = toCall / Math.max(1, room.pot + toCall);
+  const expensive = toCall > room.bigBlind * 2 || potOddsPressure > 0.35;
+
+  if (expensive && strength < t.callFloor + 0.15 && roll < t.foldWeak) {
     return { action: "fold" };
   }
-  if (strength < 0.2 && !cheap) {
+  if (strength < t.callFloor && expensive) {
     return { action: "fold" };
+  }
+  // Easy bots sometimes call trash
+  if (player.botDifficulty === "easy" && strength < 0.25 && roll < 0.45 && !expensive) {
+    return { action: "call" };
   }
 
   if (
-    strength > 0.65 &&
-    roll < 0.4 &&
+    strength > 0.55 &&
+    roll < t.raiseStrong + strength * 0.15 &&
     player.chips > toCall + room.minRaise
   ) {
-    const raiseTo = Math.min(
-      player.bet + player.chips,
-      room.currentBet + room.minRaise,
-    );
+    const raiseTo = raiseSize(room, player, strength, t.smartSize);
     if (raiseTo > room.currentBet) {
       return { action: "raise", amount: raiseTo };
     }
@@ -103,7 +179,6 @@ export function advanceBots(room: Room): boolean {
       return false;
     }
   }
-  // applyAction already resetTurnClock for the next actor
   if (room.status === "playing" && room.actingSeat !== null) {
     const next = room.players.find((p) => p.seat === room.actingSeat);
     if (next?.isBot && !room.turnDeadline) resetTurnClock(room);
@@ -111,7 +186,7 @@ export function advanceBots(room: Room): boolean {
   return true;
 }
 
-export function addBot(room: Room): Player {
+export function addBot(room: Room, difficulty: BotDifficulty = "medium"): Player {
   if (room.status === "playing") throw new Error("Espere o fim da mão");
   const taken = new Set(
     room.players.filter((p) => p.seat !== null).map((p) => p.seat as number),
@@ -135,15 +210,20 @@ export function addBot(room: Room): Player {
     nickname,
     seat,
     chips: 1000,
+    busted: false,
     hole: null,
     bet: 0,
     folded: false,
     allIn: false,
     actedThisRound: false,
     isBot: true,
+    botDifficulty: difficulty,
+    emoji: difficulty === "hard" ? "🔥" : difficulty === "easy" ? "🍞" : "🤖",
+    chipColor: difficulty === "hard" ? "#fdba74" : difficulty === "easy" ? "#86efac" : "#7dd3fc",
   };
   room.players.push(bot);
-  room.lastAction = `${bot.nickname} sentou — “a paz do Senhor e… all-in?”`;
+  const label = BOT_DIFFICULTY_LABEL[difficulty];
+  room.lastAction = `${bot.nickname} (${label}) sentou — “a paz do Senhor e… all-in?”`;
   room.updatedAt = Date.now();
   return bot;
 }

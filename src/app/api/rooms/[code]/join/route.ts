@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { joinRoom } from "@/lib/poker/engine";
+import { getProfile } from "@/lib/profile";
 import { toPublicRoom } from "@/lib/public-room";
 import { displayNickname, requireUser } from "@/lib/require-user";
 import { getRoom, saveRoom } from "@/lib/store";
@@ -26,9 +27,17 @@ export async function POST(req: Request, ctx: Ctx) {
     }
 
     const body = (await req.json().catch(() => ({}))) as { nickname?: string };
-    const nickname = displayNickname(body.nickname, user, "Jogador");
+    const profile = await getProfile(user.id, user.name);
+    const nickname = displayNickname(
+      body.nickname || profile.nickname,
+      user,
+      "Jogador",
+    );
 
-    joinRoom(room, user.id, nickname);
+    joinRoom(room, user.id, nickname, {
+      emoji: profile.emoji,
+      chipColor: profile.chipColor,
+    });
     await saveRoom(room);
     return NextResponse.json({ playerId: user.id, room: toPublicRoom(room, user.id) });
   } catch (e) {

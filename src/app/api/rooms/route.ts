@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { randomCode } from "@/lib/codes";
 import { createRoom } from "@/lib/poker/engine";
+import { getProfile } from "@/lib/profile";
 import { toPublicRoom } from "@/lib/public-room";
 import { displayNickname, requireUser } from "@/lib/require-user";
 import {
@@ -31,7 +32,12 @@ export async function POST(req: Request) {
   }
 
   const body = (await req.json().catch(() => ({}))) as { nickname?: string };
-  const nickname = displayNickname(body.nickname, user, "Anfitrião");
+  const profile = await getProfile(user.id, user.name);
+  const nickname = displayNickname(
+    body.nickname || profile.nickname,
+    user,
+    "Anfitrião",
+  );
   const playerId = user.id;
 
   let code = randomCode();
@@ -41,6 +47,11 @@ export async function POST(req: Request) {
   }
 
   const room = createRoom(code, playerId, nickname);
+  const host = room.players[0];
+  if (host) {
+    host.emoji = profile.emoji;
+    host.chipColor = profile.chipColor;
+  }
   try {
     await saveRoomVerified(room);
   } catch (e) {

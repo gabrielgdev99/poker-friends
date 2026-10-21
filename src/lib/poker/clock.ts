@@ -1,3 +1,4 @@
+import { defaultBlindSchedule } from "@/lib/poker/blinds";
 import type { Room } from "@/lib/types";
 
 export const DEFAULT_TURN_SECONDS = 18;
@@ -40,9 +41,19 @@ export function normalizeRoom(room: Room): Room {
   if (room.sbSeat === undefined) room.sbSeat = null;
   if (room.bbSeat === undefined) room.bbSeat = null;
   if (room.lastSeatAction === undefined) room.lastSeatAction = null;
+  if (!room.blindSchedule) room.blindSchedule = defaultBlindSchedule();
+  if (room.tableEnded == null) room.tableEnded = false;
+  if (room.championId === undefined) room.championId = null;
+  if (room.statsQueue === undefined) room.statsQueue = null;
   room.code = String(room.code ?? "").toUpperCase();
   for (const p of room.players) {
     if (p.isBot == null) p.isBot = false;
+    if (p.busted == null) p.busted = false;
+    if (p.botDifficulty === undefined) {
+      p.botDifficulty = p.isBot ? "medium" : null;
+    }
+    if (!p.emoji) p.emoji = p.isBot ? "🤖" : "🙏";
+    if (!p.chipColor) p.chipColor = "#f0b429";
   }
   return room;
 }

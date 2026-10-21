@@ -1,3 +1,4 @@
+import { blindsProgressLabel, defaultBlindSchedule, nextBlinds } from "@/lib/poker/blinds";
 import { describeMyHand } from "@/lib/poker/hand-hint";
 import type { PublicRoom, Room } from "@/lib/types";
 
@@ -8,6 +9,8 @@ export function toPublicRoom(room: Room, viewerId?: string): PublicRoom {
     me && !me.folded && (room.status === "playing" || room.status === "showdown")
       ? describeMyHand(me.hole, room.community)
       : null;
+  const blindSchedule = room.blindSchedule ?? defaultBlindSchedule();
+  const nxt = nextBlinds({ ...room, blindSchedule });
 
   return {
     code: room.code,
@@ -33,6 +36,12 @@ export function toPublicRoom(room: Room, viewerId?: string): PublicRoom {
     autoStartNext: !!room.autoStartNext,
     showdownUntil: room.showdownUntil ?? null,
     chat: room.chat ?? [],
+    blindSchedule,
+    tableEnded: !!room.tableEnded,
+    championId: room.championId ?? null,
+    nextSmallBlind: nxt.sb,
+    nextBigBlind: nxt.bb,
+    blindsProgress: blindsProgressLabel({ ...room, blindSchedule }),
     updatedAt: room.updatedAt,
     serverNow: Date.now(),
     myHandHint,
@@ -48,6 +57,10 @@ export function toPublicRoom(room: Room, viewerId?: string): PublicRoom {
         allIn: p.allIn,
         actedThisRound: p.actedThisRound,
         isBot: !!p.isBot,
+        botDifficulty: p.isBot ? p.botDifficulty ?? "medium" : null,
+        busted: !!p.busted,
+        emoji: p.emoji || (p.isBot ? "🤖" : "🙏"),
+        chipColor: p.chipColor || "#f0b429",
         hole: reveal && p.hole ? p.hole : null,
         holeCount: p.hole?.length ?? 0,
       };

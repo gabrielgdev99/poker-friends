@@ -1,7 +1,16 @@
 import { freshDeck, shuffle } from "@/lib/poker/cards";
 import { bestHand, compareHands } from "@/lib/poker/hand-eval";
+import { defaultBlindSchedule, onHandStarting } from "@/lib/poker/blinds";
 import { SHOWDOWN_MS, defaultTurnSeconds, resetTurnClock } from "@/lib/poker/clock";
-import type { Player, PlayerAction, Room, Street, Winner } from "@/lib/types";
+import type {
+  BlindSchedule,
+  Player,
+  PlayerAction,
+  Room,
+  StatsQueue,
+  Street,
+  Winner,
+} from "@/lib/types";
 
 const MAX_SEATS = 10;
 
@@ -122,6 +131,54 @@ function advanceStreet(room: Room) {
   }
 }
 
+function enqueueHandWins(room: Room, result: Winner[]) {
+  const queue: StatsQueue = room.statsQueue ?? { handWins: [], tableWin: null };
+  for (const w of result) {
+    const p = room.players.find((x) => x.seat === w.seat);
+    if (!p || p.isBot) continue;
+    queue.handWins.push({ id: p.id, nickname: p.nickname, amount: w.amount });
+  }
+  room.statsQueue = queue;
+}
+
+/** After pot awarded: bust zeros → spectate; end table if ≤1 with chips. */
+function resolveBustsAndTable(room: Room) {
+  for (const p of room.players) {
+    if (p.chips > 0) continue;
+    p.busted = true;
+    p.seat = null;
+    p.hole = null;
+    p.bet = 0;
+    p.folded = true;
+    p.allIn = false;
+    p.actedThisRound = false;
+  }
+
+  const solvent = room.players.filter((p) => p.chips > 0);
+  if (solvent.length > 1) return;
+
+  room.tableEnded = true;
+  room.championId = solvent[0]?.id ?? null;
+  room.autoStartNext = false;
+  room.showdownUntil = null;
+  const champ = solvent[0];
+  if (champ && !champ.isBot) {
+    const queue: StatsQueue = room.statsQueue ?? { handWins: [], tableWin: null };
+    queue.tableWin = { id: champ.id, nickname: champ.nickname };
+    room.statsQueue = queue;
+  }
+  room.lastAction = champ
+    ? `🏆 ${champ.nickname} conquistou a mesa! Quem faliu pode sentar de novo.`
+    : "Mesa encerrada — sentem de novo pra outra.";
+  // Table over: spectators may rejoin with a fresh stack
+  for (const p of room.players) {
+    if (p.busted || p.chips <= 0) {
+      p.busted = false;
+      p.chips = 1000;
+    }
+  }
+}
+
 function awardPotTo(room: Room, winners: Player[], handName: string) {
   const share = Math.floor(room.pot / winners.length);
   let rem = room.pot - share * winners.length;
@@ -144,6 +201,8 @@ function awardPotTo(room: Room, winners: Player[], handName: string) {
     seat: winners[0].seat!,
     label: `+${result[0].amount}`,
   };
+  enqueueHandWins(room, result);
+  resolveBustsAndTable(room);
 }
 
 function showdown(room: Room) {
@@ -179,6 +238,10 @@ export function createRoom(code: string, hostId: string, hostNickname: string): 
     allIn: false,
     actedThisRound: false,
     isBot: false,
+    botDifficulty: null,
+    busted: false,
+    emoji: "🙏",
+    chipColor: "#f0b429",
   };
   return {
     code,
@@ -206,15 +269,28 @@ export function createRoom(code: string, hostId: string, hostNickname: string): 
     autoStartNext: true,
     showdownUntil: null,
     chat: [],
+    blindSchedule: defaultBlindSchedule(),
+    tableEnded: false,
+    championId: null,
+    statsQueue: null,
     updatedAt: Date.now(),
   };
 }
 
-export function joinRoom(room: Room, playerId: string, nickname: string): Room {
+export function joinRoom(
+  room: Room,
+  playerId: string,
+  nickname: string,
+  style?: { emoji?: string; chipColor?: string },
+): Room {
   const existing = room.players.find((p) => p.id === playerId);
   const nick = nickname.slice(0, 16) || "Jogador";
+  const emoji = style?.emoji || "🙏";
+  const chipColor = style?.chipColor || "#f0b429";
   if (existing) {
     existing.nickname = nick;
+    existing.emoji = emoji;
+    existing.chipColor = chipColor;
     room.updatedAt = Date.now();
     return room;
   }
@@ -230,8 +306,12 @@ export function joinRoom(room: Room, playerId: string, nickname: string): Room {
     allIn: false,
     actedThisRound: false,
     isBot: false,
+    botDifficulty: null,
+    busted: false,
+    emoji,
+    chipColor,
   });
-  room.lastAction = `${nick} entrou`;
+  room.lastAction = `${emoji} ${nick} entrou`;
   room.updatedAt = Date.now();
   return room;
 }
@@ -241,6 +321,12 @@ export function sitDown(room: Room, playerId: string, seat: number): Room {
   if (room.status === "playing") throw new Error("Espere o fim da mão");
   const player = room.players.find((p) => p.id === playerId);
   if (!player) throw new Error("Jogador não encontrado");
+  if (player.busted) {
+    throw new Error("Você faliu — só assiste até alguém conquistar a mesa");
+  }
+  if (player.chips <= 0) {
+    throw new Error("Sem fichas — modo espectador (sem rebuy no meio da mesa)");
+  }
   if (room.players.some((p) => p.seat === seat && p.id !== playerId)) {
     throw new Error("Assento ocupado");
   }
@@ -253,6 +339,22 @@ export function sitDown(room: Room, playerId: string, seat: number): Room {
 export function startHand(room: Room, requesterId: string): Room {
   if (requesterId !== room.hostId) throw new Error("Só o anfitrião inicia a mão");
   if (room.status === "playing") throw new Error("Mão em andamento");
+
+  // New table session after a champion — fresh stacks for everyone
+  if (room.tableEnded) {
+    room.tableEnded = false;
+    room.championId = null;
+    room.autoStartNext = true;
+    for (const p of room.players) {
+      p.busted = false;
+      p.chips = 1000;
+      p.hole = null;
+      p.bet = 0;
+      p.folded = false;
+      p.allIn = false;
+      p.actedThisRound = false;
+    }
+  }
 
   // Clear showdown → lobby first if needed
   room.status = "lobby";
@@ -271,6 +373,8 @@ export function startHand(room: Room, requesterId: string): Room {
     p.actedThisRound = false;
   }
 
+  // Count completed hands / bump blinds before posting new blinds
+  onHandStarting(room);
   room.handNumber += 1;
   room.dealerSeat =
     nextOccupiedSeat(room, room.dealerSeat, (p) => p.chips > 0) ?? seated[0].seat!;
@@ -331,6 +435,7 @@ export function applyAction(
     throw new Error("Não é sua vez");
   }
   if (player.folded || player.allIn) throw new Error("Você não pode agir");
+  if (player.busted || player.chips < 0) throw new Error("Espectador — sem fichas");
 
   const toCall = room.currentBet - player.bet;
 
@@ -393,18 +498,23 @@ export function applyAction(
   }
 
   room.lastSeatAction = { seat: player.seat!, label: seatLabel };
+  continueAfterFoldOrAction(room, player.seat!);
+  return room;
+}
 
+/** After a fold/action: award, advance street, or pass turn. */
+function continueAfterFoldOrAction(room: Room, fromSeat: number) {
   const remaining = room.players.filter((p) => p.seat !== null && !p.folded);
   if (remaining.length === 1) {
     awardPotTo(room, remaining, "Todos desistiram");
     room.updatedAt = Date.now();
-    return room;
+    return;
   }
 
   if (bettingComplete(room)) {
     advanceStreet(room);
   } else {
-    const next = nextActor(room, player.seat!);
+    const next = nextActor(room, fromSeat);
     room.actingSeat = next;
     if (next === null) advanceStreet(room);
   }
@@ -413,13 +523,18 @@ export function applyAction(
   else room.turnDeadline = null;
 
   room.updatedAt = Date.now();
-  return room;
 }
 
 export function updateRoomSettings(
   room: Room,
   requesterId: string,
-  patch: { turnSeconds?: number; autoStartNext?: boolean },
+  patch: {
+    turnSeconds?: number;
+    autoStartNext?: boolean;
+    smallBlind?: number;
+    bigBlind?: number;
+    blindSchedule?: Partial<BlindSchedule> & { enabled?: boolean };
+  },
 ): Room {
   if (requesterId !== room.hostId) throw new Error("Só o anfitrião altera ajustes");
   if (room.status === "playing") throw new Error("Espere o fim da mão");
@@ -430,6 +545,36 @@ export function updateRoomSettings(
   }
   if (patch.autoStartNext !== undefined) {
     room.autoStartNext = patch.autoStartNext;
+  }
+  if (patch.smallBlind !== undefined) {
+    const sb = Math.floor(patch.smallBlind);
+    if (sb < 1 || sb > 50_000) throw new Error("Small blind inválido");
+    room.smallBlind = sb;
+    room.bigBlind = Math.max(sb * 2, patch.bigBlind ? Math.floor(patch.bigBlind) : sb * 2);
+    room.minRaise = room.bigBlind;
+  } else if (patch.bigBlind !== undefined) {
+    const bb = Math.floor(patch.bigBlind);
+    if (bb < 2 || bb > 100_000) throw new Error("Big blind inválido");
+    room.bigBlind = bb;
+    room.smallBlind = Math.max(1, Math.floor(bb / 2));
+    room.minRaise = room.bigBlind;
+  }
+  if (patch.blindSchedule) {
+    const cur = room.blindSchedule ?? defaultBlindSchedule();
+    const next = { ...cur, ...patch.blindSchedule };
+    if (next.mode !== "time" && next.mode !== "hands") next.mode = "hands";
+    next.every = Math.min(120, Math.max(1, Math.floor(next.every || 4)));
+    next.multiplier = Math.min(10, Math.max(1.5, Number(next.multiplier) || 2));
+    if (patch.blindSchedule.enabled && !cur.enabled) {
+      next.level = 0;
+      next.handsAtLevel = 0;
+      next.levelStartedAt = Date.now();
+    }
+    if (!next.enabled) {
+      next.levelStartedAt = null;
+      next.handsAtLevel = 0;
+    }
+    room.blindSchedule = next;
   }
   room.lastAction = "Ajustes da sala atualizados";
   room.updatedAt = Date.now();
@@ -442,6 +587,54 @@ export function leaveSeat(room: Room, playerId: string): Room {
   if (!p) throw new Error("Jogador não encontrado");
   p.seat = null;
   room.lastAction = `${p.nickname} levantou`;
+  room.updatedAt = Date.now();
+  return room;
+}
+
+/**
+ * Leave the room entirely (back to lobby).
+ * Mid-hand: auto-fold then remove — safe default, no mid-hand sit-out limbo.
+ */
+export function leaveRoom(room: Room, playerId: string): Room {
+  const p = room.players.find((x) => x.id === playerId);
+  if (!p) throw new Error("Jogador não encontrado");
+
+  const wasSeat = p.seat;
+  const wasActing = room.status === "playing" && room.actingSeat === wasSeat;
+
+  if (room.status === "playing" && wasSeat !== null && !p.folded) {
+    p.folded = true;
+    p.actedThisRound = true;
+    room.lastSeatAction = { seat: wasSeat, label: "Saiu" };
+    room.lastAction = `${p.nickname} saiu da mesa (fold)`;
+    if (wasActing || room.players.filter((x) => x.seat !== null && !x.folded).length <= 1) {
+      continueAfterFoldOrAction(room, wasSeat);
+    } else if (bettingComplete(room)) {
+      advanceStreet(room);
+      if (room.status === "playing") resetTurnClock(room);
+    }
+  } else {
+    room.lastAction = `${p.nickname} saiu da mesa`;
+  }
+
+  room.players = room.players.filter((x) => x.id !== playerId);
+
+  if (room.hostId === playerId) {
+    const nextHost =
+      room.players.find((x) => !x.isBot) ?? room.players.find((x) => x.seat !== null) ?? room.players[0];
+    room.hostId = nextHost?.id ?? "";
+    if (nextHost) {
+      room.lastAction = `${p.nickname} saiu · ${nextHost.nickname} é o anfitrião`;
+    }
+  }
+
+  // Clear acting seat if it pointed at the leaver
+  if (room.actingSeat === wasSeat) {
+    room.actingSeat =
+      room.status === "playing" ? nextActor(room, wasSeat ?? 0) : null;
+    if (room.status === "playing") resetTurnClock(room);
+  }
+
   room.updatedAt = Date.now();
   return room;
 }

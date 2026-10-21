@@ -28,6 +28,12 @@ export function AuthBar() {
 
   return (
     <div className="flex items-center gap-3">
+      <Link
+        href="/campeoes"
+        className="text-xs uppercase tracking-wider text-amber-200/70 hover:text-amber-300"
+      >
+        Campeões
+      </Link>
       {data.user.isAdmin && (
         <Link
           href="/admin"

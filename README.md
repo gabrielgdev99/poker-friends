@@ -81,22 +81,67 @@ Salas no Redis expiram em **24h** (TTL renovado a cada save).
 
 Após deploy, confira `GET /api/rooms` → `"store":"redis"`. Se vier `"memory"`, as salas somem entre requests.
 
-## Mesa / timer
+## Mesa / timer / layout
 
 - Timer de decisão **server-side** (Redis): default **18s** (`TURN_SECONDS` ou ajuste do anfitrião: 12/18/25/30).
-- Timeout: **check** se grátis, senão **fold**. Funciona com bots (bots jogam na hora).
-- UX: barra de countdown, “Sua vez!”, presets ½ pote / pote / all-in, marcas D / SB / BB, rua (Pré-flop…).
-- Showdown curto + **Auto próxima mão** (anfitrião pode desligar).
+- Timeout: **check** se grátis, senão **fold**.
+- Layout **travado** (`h-dvh`, overflow contido) — mesa + barra de ações sem scroll estranho.
+- Chat: **bolha flutuante** (canto inferior direito), fechada por padrão; não rouba espaço da mesa.
+- UX: countdown, “Sua vez!”, presets ½ pote / pote / all-in, marcas D / SB / BB.
+
+### Blinds (anfitrião)
+
+Entre mãos, o host ajusta na barra inferior:
+
+1. **SB** inicial (5–100)
+2. **Blinds sobem** — liga o schedule
+3. Modo **por mãos** (ex.: a cada 4 mãos) ou **por tempo** (ex.: a cada 5 min)
+4. Multiplicador **×1.5 / ×2 / ×3** (BB = 2× SB)
+
+Persistido na sala (Redis). O servidor sobe os blinds no `tick` / início de mão. Na mesa: blinds atuais + próximo nível.
+
+### Sair da mesa
+
+Botão **Sair da mesa** (cabeçalho). Volta ao lobby e remove você da sala.
+
+- **Entre mãos:** sai limpo.
+- **No meio da mão:** **fold automático** e sai (regra segura — sem limbo). Host passa pro próximo humano se você era anfitrião. Sala vazia (só bots) é apagada.
+
+### Mesas ativas (lobby)
+
+Após login, a home lista **mesas ativas** (código, status, blinds, sentados, host) com **Entrar**. Fonte: índice Redis (`listRooms`).
+
+### Personalização
+
+Na home: **Personalizar** — emoji, cor da ficha, feltro (sua visão). Persistido em Redis (`poker:profile:{userId}`). Aplicado ao entrar/criar sala.
+
+### Falência = espectador
+
+- A **0 fichas**, o jogador **levanta** e fica só assistindo — **sem rebuy** no meio da mesa.
+- Só volta a sentar quando a mesa **termina**: ≤1 jogador com fichas (último de pé = campeão da mesa).
+- Aí quem faliu recebe stack novo (1000) e pode sentar; o host inicia **Nova mesa** (stacks resetam).
 
 ## Bots + chat (galera da igreja)
 
 No lobby (ou após showdown), o **anfitrião** pode:
 
-1. **Chamar irmão bot** — assento livre (até 10); nomes tipo “Irmão Bot”, “Diácono Bluff”…
+1. Escolhe o **nível** (Iniciante / Médio / Difícil) → **Chamar bot** — assento livre (até 10)
 2. Remover bot — só entre mãos
-3. **Iniciar mão** — bots **pensam ~1–3s** antes de agir (server-side); timeout humano = check/fold
+3. **Iniciar mão** — bots **pensam ~1–3s** antes de agir
 
-Durante a mão: dica **“Você tem …”** (só suas cartas). Chat da mesa + emojis rápidos (Redis, rate-limit).
+Níveis (heurísticas simples): **Iniciante** folda pouco e aposta aleatório; **Médio** equilíbrio; **Difícil** folda mão fraca, raise com sizing de pote. O nível aparece no assento (`Ini` / `Méd` / `Dif`).
+
+Durante a mão: dica **“Você tem …”** (só suas cartas). Chat = FAB 💬 + emojis (rate-limit Redis).
+
+## Campeões (`/campeoes`)
+
+Ranking persistido no Redis (ou memória local):
+
+- **Fichas** — total ganho em potes
+- **Mãos** — mãos vencidas
+- **Mesas** — vezes que ficou por último
+
+Link na home e na barra de auth. API: `GET /api/stats`.
 
 ## Admin
 
@@ -129,6 +174,12 @@ Todas as rotas de sala (exceto `GET /api/rooms` health) exigem sessão Google.
 | `POST` | `/api/rooms/:code/start` | Anfitrião inicia mão |
 | `POST` | `/api/rooms/:code/action` | `{ action, amount? }` |
 | `POST` | `/api/rooms/:code/bots` | Anfitrião: `{ action: "add" }` ou `{ action: "remove", botId }` |
+| `POST` | `/api/rooms/:code/settings` | Anfitrião: timer, blinds, `blindSchedule`, auto-mão |
+| `POST` | `/api/rooms/:code/chat` | Mensagem / emoji |
+| `GET` | `/api/stats` | Rankings (fichas / mãos / mesas) |
+| `GET` | `/api/rooms/active` | Mesas ativas (lobby) |
+| `POST` | `/api/rooms/:code/leave` | Sair da mesa (fold se mid-hand) |
+| `GET/PUT` | `/api/profile` | Apelido / emoji / ficha / feltro |
 | `GET` | `/api/admin/rooms` | Lista salas (admin) |
 | `DELETE` | `/api/admin/rooms/:code` | Fecha/apaga sala (admin) |
 | `POST` | `/api/admin/rooms/:code` | `{ action: "kick", playerId }` (admin) |

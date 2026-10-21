@@ -1,5 +1,6 @@
 import { Redis } from "@upstash/redis";
 import { normalizeRoom } from "@/lib/poker/clock";
+import { flushStatsQueue } from "@/lib/stats";
 import type { Room } from "@/lib/types";
 
 const PREFIX = "poker:room:";
@@ -94,6 +95,14 @@ export async function getRoom(code: string): Promise<Room | null> {
 export async function saveRoom(room: Room): Promise<void> {
   room.updatedAt = Date.now();
   room.code = room.code.toUpperCase().trim();
+  if (room.statsQueue) {
+    try {
+      await flushStatsQueue(room.statsQueue);
+    } catch (e) {
+      console.error("[store] flushStatsQueue", e);
+    }
+    room.statsQueue = null;
+  }
   const key = PREFIX + room.code;
   const r = redis();
   if (r) {

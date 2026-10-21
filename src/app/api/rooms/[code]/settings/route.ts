@@ -19,6 +19,14 @@ export async function POST(req: Request, ctx: Ctx) {
   const body = (await req.json().catch(() => ({}))) as {
     turnSeconds?: number;
     autoStartNext?: boolean;
+    smallBlind?: number;
+    bigBlind?: number;
+    blindSchedule?: {
+      enabled?: boolean;
+      mode?: "time" | "hands";
+      every?: number;
+      multiplier?: number;
+    };
   };
   try {
     updateRoomSettings(room, user.id, body);

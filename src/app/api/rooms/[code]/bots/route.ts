@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { canManageBots } from "@/lib/can-manage-bots";
-import { addBot, advanceBots, removeBot } from "@/lib/poker/bots";
+import { addBot, advanceBots, parseBotDifficulty, removeBot } from "@/lib/poker/bots";
 import { toPublicRoom } from "@/lib/public-room";
 import { requireUser } from "@/lib/require-user";
 import { getRoom, saveRoom } from "@/lib/store";
@@ -24,6 +24,7 @@ export async function POST(req: Request, ctx: Ctx) {
   const body = (await req.json().catch(() => ({}))) as {
     action?: string;
     botId?: string;
+    difficulty?: string;
   };
 
   try {
@@ -33,7 +34,7 @@ export async function POST(req: Request, ctx: Ctx) {
       }
       removeBot(room, body.botId);
     } else {
-      addBot(room);
+      addBot(room, parseBotDifficulty(body.difficulty));
     }
     await saveRoom(room);
     return NextResponse.json({ room: toPublicRoom(room, user.id) });

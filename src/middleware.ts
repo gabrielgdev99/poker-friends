@@ -33,7 +33,9 @@ export default auth((req) => {
   }
 
   const needsAuth =
-    pathname.startsWith("/sala/") || pathname.startsWith("/api/rooms");
+    pathname.startsWith("/sala/") ||
+    pathname.startsWith("/api/rooms") ||
+    pathname.startsWith("/api/profile");
 
   if (needsAuth && !req.auth) {
     if (pathname.startsWith("/sala/")) {
@@ -53,6 +55,7 @@ export const config = {
     "/sala/:path*",
     "/api/rooms",
     "/api/rooms/:path*",
+    "/api/profile",
     "/admin",
     "/admin/:path*",
     "/api/admin/:path*",

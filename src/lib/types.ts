@@ -20,6 +20,18 @@ export type Street = "preflop" | "flop" | "turn" | "river";
 
 export type PlayerAction = "fold" | "check" | "call" | "bet" | "raise";
 
+/** Bot skill — Iniciante / Médio / Difícil. */
+export type BotDifficulty = "easy" | "medium" | "hard";
+
+export type FeltAccent = "olive" | "wine" | "navy" | "amber";
+
+export type UserProfile = {
+  nickname: string;
+  emoji: string;
+  chipColor: string;
+  feltAccent: FeltAccent;
+};
+
 export type Player = {
   id: string;
   nickname: string;
@@ -31,6 +43,19 @@ export type Player = {
   allIn: boolean;
   actedThisRound: boolean;
   isBot: boolean;
+  /** Set when isBot — affects fold/raise heuristics. */
+  botDifficulty: BotDifficulty | null;
+  /** Busted this table — spectate only until the table ends. */
+  busted: boolean;
+  /** Fun avatar emoji (from profile). */
+  emoji: string;
+  /** Chip / seat accent color hex. */
+  chipColor: string;
+};
+
+export type StatsQueue = {
+  handWins: { id: string; nickname: string; amount: number }[];
+  tableWin: { id: string; nickname: string } | null;
 };
 
 export type Winner = {
@@ -51,6 +76,19 @@ export type ChatMessage = {
   nickname: string;
   text: string;
   kind: "text" | "emoji";
+};
+
+export type BlindSchedule = {
+  enabled: boolean;
+  /** Increase by wall-clock minutes or by completed hands. */
+  mode: "time" | "hands";
+  /** Every N minutes (time) or N hands (hands). */
+  every: number;
+  /** Multiply SB each level (BB = 2× SB). Default 2. */
+  multiplier: number;
+  level: number;
+  levelStartedAt: number | null;
+  handsAtLevel: number;
 };
 
 export type Room = {
@@ -84,6 +122,12 @@ export type Room = {
   showdownUntil: number | null;
   /** In-room chat (short history). */
   chat: ChatMessage[];
+  blindSchedule: BlindSchedule;
+  /** True when ≤1 player still has chips — table session over. */
+  tableEnded: boolean;
+  championId: string | null;
+  /** Flushed to Redis leaderboards on save; not for clients. */
+  statsQueue: StatsQueue | null;
   updatedAt: number;
 };
 
@@ -93,10 +137,15 @@ export type PublicPlayer = Omit<Player, "hole"> & {
   holeCount: number;
 };
 
-export type PublicRoom = Omit<Room, "deck" | "players"> & {
+export type PublicRoom = Omit<Room, "deck" | "players" | "statsQueue"> & {
   players: PublicPlayer[];
   /** Server time for client timer sync. */
   serverNow: number;
   /** Viewer-only hand strength / draw hint. */
   myHandHint: string | null;
+  /** Next level blinds if schedule enabled (preview). */
+  nextSmallBlind: number;
+  nextBigBlind: number;
+  /** e.g. "em 2 mãos" / "em ~5 min" */
+  blindsProgress: string | null;
 };
