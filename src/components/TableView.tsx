@@ -177,6 +177,7 @@ export function TableView({ code }: { code: string }) {
                     <>
                       <p className="truncate text-xs font-medium sm:text-sm">
                         {p.nickname}
+                        {p.isBot ? " · bot" : ""}
                         {p.id === playerId ? " (você)" : ""}
                       </p>
                       <p className="text-[0.65rem] text-amber-200/80 sm:text-xs">
@@ -218,14 +219,38 @@ export function TableView({ code }: { code: string }) {
         {error && <p className="mb-2 text-sm text-rose-300">{error}</p>}
         <div className="mx-auto flex max-w-4xl flex-wrap items-center gap-2">
           {isHost && room.status !== "playing" && (
-            <button
-              type="button"
-              disabled={pending || seatedCount < 2}
-              onClick={() => api("start", {})}
-              className="bg-amber-500 px-4 py-2.5 text-sm font-medium text-emerald-950 hover:bg-amber-400 disabled:opacity-40"
-            >
-              {room.status === "showdown" ? "Próxima mão" : "Iniciar mão"}
-            </button>
+            <>
+              <button
+                type="button"
+                disabled={pending || seatedCount >= 10}
+                onClick={() => api("bots", { action: "add" })}
+                className="border border-amber-200/40 px-4 py-2.5 text-sm text-amber-100 hover:bg-amber-500/10 disabled:opacity-40"
+              >
+                Adicionar bot
+              </button>
+              {room.players
+                .filter((p) => p.isBot)
+                .map((b) => (
+                  <button
+                    key={b.id}
+                    type="button"
+                    disabled={pending}
+                    onClick={() => api("bots", { action: "remove", botId: b.id })}
+                    className="border border-rose-400/30 px-2 py-2.5 text-xs text-rose-200/90 hover:bg-rose-500/10 disabled:opacity-40"
+                    title={`Remover ${b.nickname}`}
+                  >
+                    Remover {b.nickname}
+                  </button>
+                ))}
+              <button
+                type="button"
+                disabled={pending || seatedCount < 2}
+                onClick={() => api("start", {})}
+                className="bg-amber-500 px-4 py-2.5 text-sm font-medium text-emerald-950 hover:bg-amber-400 disabled:opacity-40"
+              >
+                {room.status === "showdown" ? "Próxima mão" : "Iniciar mão"}
+              </button>
+            </>
           )}
 
           {myTurn && room.status === "playing" && (
