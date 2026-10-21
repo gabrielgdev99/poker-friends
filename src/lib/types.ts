@@ -30,6 +30,7 @@ export type Player = {
   folded: boolean;
   allIn: boolean;
   actedThisRound: boolean;
+  isBot: boolean;
 };
 
 export type Winner = {

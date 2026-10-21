@@ -170,6 +170,7 @@ export function createRoom(code: string, hostId: string, hostNickname: string): 
     folded: false,
     allIn: false,
     actedThisRound: false,
+    isBot: false,
   };
   return {
     code,
@@ -212,6 +213,7 @@ export function joinRoom(room: Room, playerId: string, nickname: string): Room {
     folded: false,
     allIn: false,
     actedThisRound: false,
+    isBot: false,
   });
   room.lastAction = `${nick} entrou`;
   room.updatedAt = Date.now();

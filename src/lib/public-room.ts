@@ -30,6 +30,7 @@ export function toPublicRoom(room: Room, viewerId?: string): PublicRoom {
         folded: p.folded,
         allIn: p.allIn,
         actedThisRound: p.actedThisRound,
+        isBot: !!p.isBot,
         hole: reveal && p.hole ? p.hole : null,
         holeCount: p.hole?.length ?? 0,
       };

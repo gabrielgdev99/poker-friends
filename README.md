@@ -27,8 +27,9 @@ Abra [http://localhost:3000](http://localhost:3000).
 1. **Entrar com Google**
 2. Ajuste o apelido (padrão = nome do Google) → **Criar sala**
 3. Compartilhe o código; outro jogador logado entra e senta
-4. Anfitrião → **Iniciar mão** (mín. 2 sentados)
-5. Fold / Check / Call / Bet / Raise
+4. Anfitrião → **Adicionar bot** (assentos vazios) se estiver sozinho
+5. Anfitrião → **Iniciar mão** (mín. 2 sentados, humanos e/ou bots)
+6. Fold / Check / Call / Bet / Raise — bots jogam sozinhos no turno deles
 
 ## Google Cloud (OAuth)
 
@@ -76,6 +77,16 @@ UPSTASH_REDIS_REST_TOKEN=AXxxxx
 
 Salas no Redis expiram em **24h** (TTL renovado a cada save).
 
+## Bots (teste solo)
+
+No lobby (ou após showdown), o **anfitrião** pode:
+
+1. **Adicionar bot** — ocupa o próximo assento livre (até 10), nome `Bot 1`, `Bot 2`…
+2. **Remover Bot N** — só entre mãos
+3. **Iniciar mão** — bots agem no servidor (heurística simples: check/call barato, fold lixo, raise ocasional)
+
+Cada poll `GET /api/rooms/:code` e cada ação humana avançam a vez dos bots, então a mão não trava.
+
 ## Admin
 
 Área `/admin` (link **Admin** só aparece na barra se o e-mail da sessão estiver na allowlist).
@@ -106,6 +117,7 @@ Todas as rotas de sala (exceto `GET /api/rooms` health) exigem sessão Google.
 | `POST` | `/api/rooms/:code/sit` | Sentar `{ seat }` |
 | `POST` | `/api/rooms/:code/start` | Anfitrião inicia mão |
 | `POST` | `/api/rooms/:code/action` | `{ action, amount? }` |
+| `POST` | `/api/rooms/:code/bots` | Anfitrião: `{ action: "add" }` ou `{ action: "remove", botId }` |
 | `GET` | `/api/admin/rooms` | Lista salas (admin) |
 | `DELETE` | `/api/admin/rooms/:code` | Fecha/apaga sala (admin) |
 | `POST` | `/api/admin/rooms/:code` | `{ action: "kick", playerId }` (admin) |
