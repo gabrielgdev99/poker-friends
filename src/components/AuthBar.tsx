@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { signIn, signOut, useSession } from "next-auth/react";
 
 export function AuthBar() {
@@ -27,6 +28,14 @@ export function AuthBar() {
 
   return (
     <div className="flex items-center gap-3">
+      {data.user.isAdmin && (
+        <Link
+          href="/admin"
+          className="text-xs uppercase tracking-wider text-amber-400 hover:text-amber-300"
+        >
+          Admin
+        </Link>
+      )}
       {data.user.image && (
         // eslint-disable-next-line @next/next/no-img-element
         <img
