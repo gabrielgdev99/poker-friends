@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { BUY_IN, GUEST_STACK, withdraw } from "@/lib/bank";
 import { randomCode } from "@/lib/codes";
-import { createRoom } from "@/lib/poker/engine";
+import { clampMaxSeats, createRoom } from "@/lib/poker/engine";
 import { getProfile } from "@/lib/profile";
 import { toPublicRoom } from "@/lib/public-room";
 import { displayNickname, requireUser } from "@/lib/require-user";
@@ -35,13 +35,17 @@ export async function POST(req: Request) {
     );
   }
 
-  const body = (await req.json().catch(() => ({}))) as { nickname?: string };
+  const body = (await req.json().catch(() => ({}))) as {
+    nickname?: string;
+    maxSeats?: number;
+  };
   const profile = await getProfile(user.id, user.name);
   const nickname = displayNickname(
     body.nickname || profile.nickname,
     user,
     user.isGuest ? "Convidado" : "Anfitrião",
   );
+  const maxSeats = clampMaxSeats(body.maxSeats);
   const playerId = user.id;
   const stack = user.isGuest ? GUEST_STACK : BUY_IN;
 
@@ -64,11 +68,15 @@ export async function POST(req: Request) {
     code = randomCode();
   }
 
-  const room = createRoom(code, playerId, nickname);
+  const room = createRoom(code, playerId, nickname, maxSeats);
   const host = room.players[0];
   if (host) {
     host.emoji = profile.emoji;
     host.chipColor = profile.chipColor;
+    host.avatarUrl =
+      !user.isGuest && typeof user.image === "string" && user.image.startsWith("http")
+        ? user.image
+        : null;
     host.chips = stack;
   }
   try {

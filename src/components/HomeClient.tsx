@@ -13,6 +13,7 @@ type ActiveRoom = {
   smallBlind: number;
   bigBlind: number;
   seatedCount: number;
+  maxSeats?: number;
   hostName: string;
 };
 
@@ -35,6 +36,7 @@ export function HomeClient() {
   const player = usePlayer();
   const [nickname, setNickname] = useState("");
   const [code, setCode] = useState("");
+  const [maxSeats, setMaxSeats] = useState(6);
   const [error, setError] = useState<string | null>(null);
   const [pending, start] = useTransition();
   const [rooms, setRooms] = useState<ActiveRoom[]>([]);
@@ -163,7 +165,10 @@ export function HomeClient() {
       const res = await fetch("/api/rooms", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ nickname: nickname || player.name }),
+        body: JSON.stringify({
+          nickname: nickname || player.name,
+          maxSeats,
+        }),
       });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) {
@@ -377,6 +382,29 @@ export function HomeClient() {
             </div>
           )}
 
+          <label className="flex flex-col gap-1.5">
+            <span className="text-[0.65rem] uppercase tracking-[0.2em] text-amber-200/60">
+              Assentos na mesa
+            </span>
+            <div className="flex flex-wrap gap-1.5" role="group" aria-label="Máximo de assentos">
+              {[2, 3, 4, 5, 6, 7, 8, 9, 10].map((n) => (
+                <button
+                  key={n}
+                  type="button"
+                  onClick={() => setMaxSeats(n)}
+                  aria-pressed={maxSeats === n}
+                  className={`min-w-[2.25rem] border px-2 py-1.5 text-sm tabular-nums ${
+                    maxSeats === n
+                      ? "border-amber-400 bg-amber-500/20 text-amber-100"
+                      : "border-amber-900/40 text-amber-100/55 hover:border-amber-700/50"
+                  }`}
+                >
+                  {n}
+                </button>
+              ))}
+            </div>
+          </label>
+
           <div className="flex flex-col gap-2 sm:flex-row">
             <button
               type="button"
@@ -424,7 +452,8 @@ export function HomeClient() {
                       </p>
                       <p className="truncate text-[0.7rem] text-amber-100/50">
                         {STATUS_LABEL[r.status] ?? r.status} · {r.smallBlind}/
-                        {r.bigBlind} · {r.seatedCount} · {r.hostName}
+                        {r.bigBlind} · {r.seatedCount}/{r.maxSeats ?? 10} ·{" "}
+                        {r.hostName}
                       </p>
                     </div>
                     <button

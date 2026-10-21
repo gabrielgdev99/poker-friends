@@ -1,9 +1,7 @@
 import { RANK_VALUE } from "@/lib/poker/cards";
 import { resetTurnClock } from "@/lib/poker/clock";
-import { applyAction } from "@/lib/poker/engine";
+import { applyAction, roomMaxSeats } from "@/lib/poker/engine";
 import type { BotDifficulty, Card, Player, PlayerAction, Room } from "@/lib/types";
-
-const MAX_SEATS = 10;
 
 const BOT_NAMES = [
   "Irmão Bot",
@@ -191,14 +189,15 @@ export function addBot(room: Room, difficulty: BotDifficulty = "medium"): Player
   const taken = new Set(
     room.players.filter((p) => p.seat !== null).map((p) => p.seat as number),
   );
+  const max = roomMaxSeats(room);
   let seat: number | null = null;
-  for (let s = 0; s < MAX_SEATS; s++) {
+  for (let s = 0; s < max; s++) {
     if (!taken.has(s)) {
       seat = s;
       break;
     }
   }
-  if (seat === null) throw new Error("Mesa cheia (10 assentos)");
+  if (seat === null) throw new Error(`Mesa cheia (${max} assentos)`);
 
   const used = new Set(room.players.map((p) => p.nickname));
   const nickname =
@@ -220,6 +219,7 @@ export function addBot(room: Room, difficulty: BotDifficulty = "medium"): Player
     botDifficulty: difficulty,
     emoji: difficulty === "hard" ? "🔥" : difficulty === "easy" ? "🍞" : "🤖",
     chipColor: difficulty === "hard" ? "#fdba74" : difficulty === "easy" ? "#86efac" : "#7dd3fc",
+    avatarUrl: null,
   };
   room.players.push(bot);
   const label = BOT_DIFFICULTY_LABEL[difficulty];

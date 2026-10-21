@@ -59,6 +59,10 @@ export async function POST(req: Request, ctx: Ctx) {
     joinRoom(room, user.id, nickname, {
       emoji: profile.emoji,
       chipColor: profile.chipColor,
+      avatarUrl:
+        !user.isGuest && typeof user.image === "string" && user.image.startsWith("http")
+          ? user.image
+          : null,
     });
     const me = room.players.find((p) => p.id === user.id);
     if (me && isNew) {

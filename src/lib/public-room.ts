@@ -15,6 +15,7 @@ export function toPublicRoom(room: Room, viewerId?: string): PublicRoom {
   return {
     code: room.code,
     hostId: room.hostId,
+    maxSeats: room.maxSeats ?? 10,
     status: room.status,
     dealerSeat: room.dealerSeat,
     sbSeat: room.sbSeat ?? null,
@@ -61,6 +62,7 @@ export function toPublicRoom(room: Room, viewerId?: string): PublicRoom {
         busted: !!p.busted,
         emoji: p.emoji || (p.isBot ? "🤖" : "🙏"),
         chipColor: p.chipColor || "#f0b429",
+        avatarUrl: p.avatarUrl || null,
         hole: reveal && p.hole ? p.hole : null,
         holeCount: p.hole?.length ?? 0,
       };

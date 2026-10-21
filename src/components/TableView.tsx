@@ -4,6 +4,7 @@ import { signIn } from "next-auth/react";
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useMemo, useRef, useState, useTransition } from "react";
 import { AuthBar } from "@/components/AuthBar";
+import { ChipStack, seatBetOffset } from "@/components/ChipStack";
 import { HostMenu } from "@/components/HostMenu";
 import { PlayingCard } from "@/components/PlayingCard";
 import { usePlayer } from "@/components/PlayerProvider";
@@ -37,9 +38,47 @@ const STREET_LABEL: Record<Street, string> = {
   river: "River",
 };
 
+/** Seat speech bubble lifetime (ms). */
+const CHAT_BUBBLE_MS = 4500;
+
 function formatChips(n: number) {
   if (n >= 1000) return `${(n / 1000).toFixed(n % 1000 === 0 ? 0 : 1)}k`;
   return String(n);
+}
+
+function SeatAvatar({
+  emoji,
+  avatarUrl,
+  chipColor,
+  acting,
+}: {
+  emoji: string;
+  avatarUrl: string | null;
+  chipColor: string;
+  acting?: boolean;
+}) {
+  return (
+    <div
+      className={`relative mx-auto flex h-9 w-9 items-center justify-center overflow-hidden rounded-full border-2 bg-emerald-950 shadow-md sm:h-10 sm:w-10 ${
+        acting ? "border-amber-200" : "border-emerald-800/80"
+      }`}
+      style={{ boxShadow: `0 0 0 1px ${chipColor}55` }}
+    >
+      {avatarUrl ? (
+        // eslint-disable-next-line @next/next/no-img-element
+        <img
+          src={avatarUrl}
+          alt=""
+          className="h-full w-full object-cover"
+          referrerPolicy="no-referrer"
+        />
+      ) : (
+        <span className="text-lg leading-none sm:text-xl" aria-hidden>
+          {emoji || "🙏"}
+        </span>
+      )}
+    </div>
+  );
 }
 
 export function TableView({ code }: { code: string }) {
@@ -266,6 +305,20 @@ export function TableView({ code }: { code: string }) {
     };
   }, [room, now, clockSkew]);
 
+  /** Latest chat per seat — auto-hides after CHAT_BUBBLE_MS. */
+  const seatBubbles = useMemo(() => {
+    const map = new Map<number, { text: string; kind: "text" | "emoji"; id: string }>();
+    if (!room) return map;
+    const serverApprox = now - clockSkew;
+    for (const msg of room.chat ?? []) {
+      if (serverApprox - msg.at > CHAT_BUBBLE_MS) continue;
+      const p = room.players.find((x) => x.id === msg.playerId);
+      if (p?.seat == null) continue;
+      map.set(p.seat, { text: msg.text, kind: msg.kind, id: msg.id });
+    }
+    return map;
+  }, [room, now, clockSkew]);
+
   if (player.mode === "loading") {
     return (
       <div className="flex h-dvh items-center justify-center text-amber-100/70">
@@ -345,6 +398,7 @@ export function TableView({ code }: { code: string }) {
     ? room.players.find((p) => p.id === room.championId)
     : null;
   const felt = feltCss(feltAccent);
+  const maxSeats = Math.min(10, Math.max(2, room.maxSeats ?? 10));
 
   return (
     <div className="relative flex h-dvh max-h-dvh flex-col overflow-hidden text-amber-50">
@@ -365,6 +419,7 @@ export function TableView({ code }: { code: string }) {
             {room.handNumber > 0 ? ` · #${room.handNumber}` : ""}
             {" · "}
             {room.smallBlind}/{room.bigBlind}
+            {` · ${maxSeats} assentos`}
             {sched?.enabled && room.blindsProgress ? ` ↑${room.blindsProgress}` : ""}
           </p>
         </div>
@@ -412,8 +467,14 @@ export function TableView({ code }: { code: string }) {
         </div>
       )}
 
-      {/* Table fills remaining viewport */}
-      <div className="relative mx-auto flex min-h-0 w-full flex-1 items-center justify-center px-0 pb-2 pt-1">
+      {/* Table fills remaining viewport — leave room at bottom for hero cards + FABs */}
+      <div
+        className={`relative mx-auto flex min-h-0 w-full flex-1 items-center justify-center px-0 pt-1 ${
+          canBet || (me?.hole && me.hole.length > 0)
+            ? "pb-[7.5rem] sm:pb-32"
+            : "pb-2"
+        }`}
+      >
         <div className="relative h-full max-h-full w-full max-w-[1000px] aspect-[5/4] sm:aspect-[4/3]">
           <div
             className="absolute inset-[1%] rounded-[48%] border-[8px] shadow-[inset_0_0_60px_rgba(0,0,0,0.45)] sm:inset-[2%] sm:border-[10px]"
@@ -425,17 +486,20 @@ export function TableView({ code }: { code: string }) {
             <div className="absolute inset-[3%] rounded-[48%] border border-amber-400/15" />
           </div>
 
-          <div className="absolute left-1/2 top-[42%] z-10 flex w-[94%] -translate-x-1/2 -translate-y-1/2 flex-col items-center gap-1 sm:top-[46%]">
+          <div className="absolute left-1/2 top-[40%] z-10 flex w-[94%] -translate-x-1/2 -translate-y-1/2 flex-col items-center gap-1.5 sm:top-[44%]">
             <p className="text-[0.6rem] uppercase tracking-[0.25em] text-emerald-200/55">
               {streetLabel ?? "Mesa"}
             </p>
-            <p
-              key={potBump}
-              className="pot-bump rounded-full bg-black/50 px-3 py-1 text-base font-semibold text-amber-200 sm:text-lg"
-            >
-              Pote {formatChips(room.pot)}
-            </p>
-            <div className="flex min-h-[4.5rem] items-center justify-center gap-1 sm:min-h-28 sm:gap-2">
+            <div key={potBump} className="pot-bump">
+              {room.pot > 0 ? (
+                <ChipStack amount={room.pot} size="lg" label={`Pote ${formatChips(room.pot)}`} />
+              ) : (
+                <span className="rounded-full bg-black/45 px-3 py-1 text-sm text-amber-200/70">
+                  Pote 0
+                </span>
+              )}
+            </div>
+            <div className="flex min-h-[3.8rem] items-center justify-center gap-1 sm:min-h-[5.25rem] sm:gap-1.5">
               {room.community.map((c, i) => (
                 <PlayingCard
                   key={`${room.handNumber}-${i}`}
@@ -465,7 +529,22 @@ export function TableView({ code }: { code: string }) {
             )}
           </div>
 
-          {SEAT_POS.map((pos, seat) => {
+          {/* Street bets — chip stacks toward center */}
+          {room.players.map((p) => {
+            if (p.seat === null || p.bet <= 0 || p.folded) return null;
+            const off = seatBetOffset(p.seat);
+            return (
+              <div
+                key={`bet-${p.id}`}
+                className="pointer-events-none absolute z-[15] -translate-x-1/2 -translate-y-1/2"
+                style={{ top: off.top, left: off.left }}
+              >
+                <ChipStack amount={p.bet} size="sm" />
+              </div>
+            );
+          })}
+
+          {SEAT_POS.slice(0, maxSeats).map((pos, seat) => {
             const p = room.players.find((x) => x.seat === seat);
             const isDealer = room.dealerSeat === seat && room.status !== "lobby";
             const isSb = room.sbSeat === seat && room.status === "playing";
@@ -474,6 +553,9 @@ export function TableView({ code }: { code: string }) {
             const isMe = p?.id === playerId;
             const empty = !p;
             const lastHere = room.lastSeatAction?.seat === seat;
+            const bubble = seatBubbles.get(seat);
+            // Hero hole cards live in the bottom tray — keep seat compact
+            const showSeatCards = !!p && p.holeCount > 0 && !(isMe && p.hole);
             return (
               <button
                 key={seat}
@@ -481,10 +563,37 @@ export function TableView({ code }: { code: string }) {
                 disabled={!empty || !canSit || pending}
                 onClick={() => api("sit", { seat })}
                 style={{ top: pos.top, left: pos.left }}
-                className={`absolute z-20 w-[5.5rem] -translate-x-1/2 -translate-y-1/2 sm:w-32 ${
+                className={`absolute z-20 w-[5.25rem] -translate-x-1/2 -translate-y-1/2 sm:w-28 ${
                   empty && canSit ? "cursor-pointer opacity-80 hover:opacity-100" : "cursor-default"
                 }`}
               >
+                {!empty && (
+                  <div className="relative mb-0.5">
+                    {bubble && (
+                      <div
+                        key={bubble.id}
+                        className="seat-chat-bubble pointer-events-none absolute bottom-full left-1/2 z-30 mb-1 max-w-[7.5rem] -translate-x-1/2"
+                      >
+                        <div
+                          className={`rounded-xl bg-[#f7f3ea] px-2 py-1 text-[#1a1208] shadow-md ${
+                            bubble.kind === "emoji"
+                              ? "text-center text-xl leading-none"
+                              : "text-[0.65rem] leading-snug"
+                          }`}
+                        >
+                          <span className="line-clamp-2 break-words">{bubble.text}</span>
+                        </div>
+                        <div className="mx-auto h-0 w-0 border-x-[5px] border-t-[5px] border-x-transparent border-t-[#f7f3ea]" />
+                      </div>
+                    )}
+                    <SeatAvatar
+                      emoji={p.emoji || "🙏"}
+                      avatarUrl={p.avatarUrl}
+                      chipColor={p.chipColor || "#f0b429"}
+                      acting={isActing}
+                    />
+                  </div>
+                )}
                 <div
                   className={`rounded-lg px-1 py-1 text-center sm:px-2 sm:py-1.5 ${
                     isActing
@@ -501,7 +610,6 @@ export function TableView({ code }: { code: string }) {
                   ) : (
                     <>
                       <p className="truncate text-[0.6rem] font-medium sm:text-xs">
-                        <span className="mr-0.5">{p.emoji || "🙏"}</span>
                         {p.nickname}
                         {p.isBot && p.botDifficulty
                           ? ` · ${BOT_SHORT[p.botDifficulty]}`
@@ -514,21 +622,13 @@ export function TableView({ code }: { code: string }) {
                       >
                         {formatChips(p.chips)}
                       </p>
-                      {p.bet > 0 && !p.folded && (
-                        <p className="text-[0.55rem]">aposta {formatChips(p.bet)}</p>
-                      )}
                       {p.folded && <p className="text-[0.55rem]">fold</p>}
                       {p.allIn && !p.folded && <p className="text-[0.55rem]">all-in</p>}
-                      {p.holeCount > 0 && (
-                        <div className="mt-0.5 flex justify-center gap-0.5 sm:gap-1">
+                      {showSeatCards && (
+                        <div className="mt-0.5 flex justify-center gap-0.5">
                           {p.hole ? (
                             p.hole.map((c, i) => (
-                              <PlayingCard
-                                key={i}
-                                card={c}
-                                size={isMe ? "hero" : "seat"}
-                                dealDelayMs={isMe ? i * 80 : 0}
-                              />
+                              <PlayingCard key={i} card={c} size="seat" />
                             ))
                           ) : (
                             <>
@@ -536,6 +636,12 @@ export function TableView({ code }: { code: string }) {
                               <PlayingCard hidden size="seat" />
                             </>
                           )}
+                        </div>
+                      )}
+                      {isMe && p.holeCount > 0 && !p.hole && (
+                        <div className="mt-0.5 flex justify-center gap-0.5">
+                          <PlayingCard hidden size="seat" />
+                          <PlayingCard hidden size="seat" />
                         </div>
                       )}
                       {lastHere && room.lastSeatAction && (
@@ -575,9 +681,27 @@ export function TableView({ code }: { code: string }) {
         </p>
       )}
 
-      {/* Floating player actions — no fat footer strip */}
+      {/* Hero hole cards — above FABs, never covered */}
+      {me?.hole && me.hole.length > 0 && (room.status === "playing" || room.status === "showdown") && (
+        <div
+          className="pointer-events-none fixed left-1/2 z-[38] flex -translate-x-1/2 flex-col items-center gap-1"
+          style={{
+            bottom: canBet
+              ? "calc(5.75rem + env(safe-area-inset-bottom))"
+              : "calc(1.25rem + env(safe-area-inset-bottom))",
+          }}
+        >
+          <div className="flex gap-1.5 rounded-xl border border-amber-900/35 bg-[#1a1208]/80 px-2.5 py-1.5 shadow-xl backdrop-blur-sm">
+            {me.hole.map((c, i) => (
+              <PlayingCard key={i} card={c} size="hero" dealDelayMs={i * 80} />
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Floating actions — below hero tray */}
       {canBet && (
-        <div className="pointer-events-none fixed inset-x-0 bottom-[calc(1rem+env(safe-area-inset-bottom))] z-40 flex flex-col items-center gap-2 px-3">
+        <div className="pointer-events-none fixed inset-x-0 bottom-[calc(0.75rem+env(safe-area-inset-bottom))] z-40 flex flex-col items-center gap-1.5 px-3">
           {raiseOpen && (
             <div className="pointer-events-auto flex flex-wrap items-center justify-center gap-1.5 rounded-2xl border border-amber-900/40 bg-[#1a1208]/95 px-3 py-2 shadow-xl backdrop-blur-md">
               {[
@@ -635,7 +759,7 @@ export function TableView({ code }: { code: string }) {
               type="button"
               disabled={pending}
               onClick={() => api("action", { action: "fold" })}
-              className="h-14 min-w-[4.5rem] rounded-2xl border border-rose-400/50 bg-rose-950/85 px-4 text-sm font-semibold text-rose-50 shadow-lg active:scale-95"
+              className="h-12 min-w-[4.25rem] rounded-2xl border border-rose-400/50 bg-rose-950/90 px-4 text-sm font-semibold text-rose-50 shadow-lg active:scale-95 sm:h-13"
             >
               Fold
             </button>
@@ -644,7 +768,7 @@ export function TableView({ code }: { code: string }) {
                 type="button"
                 disabled={pending}
                 onClick={() => api("action", { action: "check" })}
-                className="h-14 min-w-[5.5rem] rounded-2xl border border-emerald-400/40 bg-emerald-900/90 px-5 text-sm font-semibold shadow-lg active:scale-95"
+                className="h-12 min-w-[5.25rem] rounded-2xl border border-emerald-400/40 bg-emerald-900/95 px-5 text-sm font-semibold shadow-lg active:scale-95"
               >
                 Check
               </button>
@@ -653,7 +777,7 @@ export function TableView({ code }: { code: string }) {
                 type="button"
                 disabled={pending}
                 onClick={() => api("action", { action: "call" })}
-                className="h-14 min-w-[5.5rem] rounded-2xl border border-emerald-400/40 bg-emerald-900/90 px-5 text-sm font-semibold shadow-lg active:scale-95"
+                className="h-12 min-w-[5.25rem] rounded-2xl border border-emerald-400/40 bg-emerald-900/95 px-5 text-sm font-semibold shadow-lg active:scale-95"
               >
                 Call {formatChips(Math.min(toCall, me?.chips ?? toCall))}
               </button>
@@ -662,7 +786,7 @@ export function TableView({ code }: { code: string }) {
               type="button"
               disabled={pending}
               onClick={() => setRaiseOpen((v) => !v)}
-              className="h-14 min-w-[4.5rem] rounded-2xl bg-amber-500 px-4 text-sm font-semibold text-emerald-950 shadow-lg active:scale-95"
+              className="h-12 min-w-[4.25rem] rounded-2xl bg-amber-500 px-4 text-sm font-semibold text-emerald-950 shadow-lg active:scale-95"
             >
               {room.currentBet === 0 ? "Bet" : "Raise"}
             </button>
@@ -670,7 +794,7 @@ export function TableView({ code }: { code: string }) {
         </div>
       )}
 
-      {!myTurn && room.status === "playing" && !isSpectator && (
+      {!myTurn && room.status === "playing" && !isSpectator && !me?.hole && (
         <p className="pointer-events-none fixed bottom-4 left-1/2 z-30 -translate-x-1/2 text-xs text-emerald-100/45">
           Aguardando {actingName}…
         </p>
@@ -690,12 +814,12 @@ export function TableView({ code }: { code: string }) {
           </p>
         )}
 
-      {/* Host FAB — left; chat stays bottom-right */}
+      {/* Host FAB — left; above chat */}
       {isHost && (
         <button
           type="button"
           onClick={() => setHostOpen(true)}
-          className="fixed bottom-[calc(5.5rem+env(safe-area-inset-bottom))] left-3 z-40 flex h-12 w-12 items-center justify-center rounded-full bg-[#2a1c0a] text-lg text-amber-300 shadow-lg ring-2 ring-amber-600/40 sm:left-5"
+          className="fixed bottom-[calc(6.5rem+env(safe-area-inset-bottom))] left-3 z-40 flex h-11 w-11 items-center justify-center rounded-full bg-[#2a1c0a] text-lg text-amber-300 shadow-lg ring-2 ring-amber-600/40 sm:left-5"
           aria-label="Menu da mesa"
           title="Menu anfitrião"
         >

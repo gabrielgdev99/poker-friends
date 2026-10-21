@@ -47,10 +47,12 @@ export type Player = {
   botDifficulty: BotDifficulty | null;
   /** Busted this table — spectate only until the table ends. */
   busted: boolean;
-  /** Fun avatar emoji (from profile). */
+  /** Fun avatar emoji (from profile / guest). */
   emoji: string;
   /** Chip / seat accent color hex. */
   chipColor: string;
+  /** Google profile image URL when available; null for guests/bots. */
+  avatarUrl: string | null;
 };
 
 export type StatsQueue = {
@@ -94,6 +96,8 @@ export type BlindSchedule = {
 export type Room = {
   code: string;
   hostId: string;
+  /** Max occupied seats (2–10). Host picks on create. */
+  maxSeats: number;
   players: Player[];
   status: "lobby" | "playing" | "showdown";
   dealerSeat: number;

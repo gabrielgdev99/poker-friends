@@ -23,6 +23,7 @@ export async function GET() {
         playerCount: r.players.length,
         humanCount: humans,
         seatedCount: seated,
+        maxSeats: r.maxSeats ?? 10,
         hostName: host ? `${host.emoji || ""} ${host.nickname}`.trim() : "—",
         handNumber: r.handNumber,
         updatedAt: r.updatedAt,

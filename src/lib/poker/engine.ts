@@ -12,7 +12,18 @@ import type {
   Winner,
 } from "@/lib/types";
 
-const MAX_SEATS = 10;
+export const SEAT_CAP = 10;
+export const SEAT_MIN = 2;
+
+export function clampMaxSeats(n: unknown): number {
+  const v = Number(n);
+  if (!Number.isFinite(v)) return SEAT_CAP;
+  return Math.min(SEAT_CAP, Math.max(SEAT_MIN, Math.floor(v)));
+}
+
+export function roomMaxSeats(room: Room): number {
+  return clampMaxSeats(room.maxSeats ?? SEAT_CAP);
+}
 
 export function seatedPlayers(room: Room): Player[] {
   return room.players
@@ -27,8 +38,9 @@ export function activeInHand(room: Room): Player[] {
 }
 
 function nextOccupiedSeat(room: Room, from: number, pred?: (p: Player) => boolean): number | null {
-  for (let i = 1; i <= MAX_SEATS; i++) {
-    const seat = (from + i) % MAX_SEATS;
+  const n = roomMaxSeats(room);
+  for (let i = 1; i <= n; i++) {
+    const seat = (from + i) % n;
     const p = room.players.find((x) => x.seat === seat);
     if (!p) continue;
     if (pred && !pred(p)) continue;
@@ -226,7 +238,12 @@ function showdown(room: Room) {
   awardPotTo(room, winners, best.name);
 }
 
-export function createRoom(code: string, hostId: string, hostNickname: string): Room {
+export function createRoom(
+  code: string,
+  hostId: string,
+  hostNickname: string,
+  maxSeats: number = SEAT_CAP,
+): Room {
   const host: Player = {
     id: hostId,
     nickname: hostNickname,
@@ -242,10 +259,12 @@ export function createRoom(code: string, hostId: string, hostNickname: string): 
     busted: false,
     emoji: "🙏",
     chipColor: "#f0b429",
+    avatarUrl: null,
   };
   return {
     code,
     hostId,
+    maxSeats: clampMaxSeats(maxSeats),
     players: [host],
     status: "lobby",
     dealerSeat: 0,
@@ -281,20 +300,27 @@ export function joinRoom(
   room: Room,
   playerId: string,
   nickname: string,
-  style?: { emoji?: string; chipColor?: string },
+  style?: { emoji?: string; chipColor?: string; avatarUrl?: string | null },
 ): Room {
   const existing = room.players.find((p) => p.id === playerId);
   const nick = nickname.slice(0, 16) || "Jogador";
   const emoji = style?.emoji || "🙏";
   const chipColor = style?.chipColor || "#f0b429";
+  const avatarUrl =
+    typeof style?.avatarUrl === "string" && style.avatarUrl.startsWith("http")
+      ? style.avatarUrl
+      : null;
   if (existing) {
     existing.nickname = nick;
     existing.emoji = emoji;
     existing.chipColor = chipColor;
+    if (avatarUrl) existing.avatarUrl = avatarUrl;
     room.updatedAt = Date.now();
     return room;
   }
-  if (room.players.length >= MAX_SEATS) throw new Error("Sala cheia");
+  const max = roomMaxSeats(room);
+  const claiming = room.players.filter((p) => !p.busted).length;
+  if (claiming >= max) throw new Error(`Sala cheia (${max} assentos)`);
   room.players.push({
     id: playerId,
     nickname: nick,
@@ -310,6 +336,7 @@ export function joinRoom(
     busted: false,
     emoji,
     chipColor,
+    avatarUrl,
   });
   room.lastAction = `${emoji} ${nick} entrou`;
   room.updatedAt = Date.now();
@@ -317,7 +344,8 @@ export function joinRoom(
 }
 
 export function sitDown(room: Room, playerId: string, seat: number): Room {
-  if (seat < 0 || seat >= MAX_SEATS) throw new Error("Assento inválido");
+  const max = roomMaxSeats(room);
+  if (seat < 0 || seat >= max) throw new Error("Assento inválido");
   if (room.status === "playing") throw new Error("Espere o fim da mão");
   const player = room.players.find((p) => p.id === playerId);
   if (!player) throw new Error("Jogador não encontrado");

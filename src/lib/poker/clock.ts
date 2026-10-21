@@ -45,6 +45,11 @@ export function normalizeRoom(room: Room): Room {
   if (room.tableEnded == null) room.tableEnded = false;
   if (room.championId === undefined) room.championId = null;
   if (room.statsQueue === undefined) room.statsQueue = null;
+  if (room.maxSeats == null || room.maxSeats < 2 || room.maxSeats > 10) {
+    room.maxSeats = 10;
+  } else {
+    room.maxSeats = Math.floor(room.maxSeats);
+  }
   room.code = String(room.code ?? "").toUpperCase();
   for (const p of room.players) {
     if (p.isBot == null) p.isBot = false;
@@ -54,6 +59,7 @@ export function normalizeRoom(room: Room): Room {
     }
     if (!p.emoji) p.emoji = p.isBot ? "🤖" : "🙏";
     if (!p.chipColor) p.chipColor = "#f0b429";
+    if (p.avatarUrl === undefined) p.avatarUrl = null;
   }
   return room;
 }
