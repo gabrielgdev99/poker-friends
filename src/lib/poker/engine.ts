@@ -199,12 +199,13 @@ export function createRoom(code: string, hostId: string, hostNickname: string): 
     street: null,
     handNumber: 0,
     winners: null,
-    lastAction: "Sala criada",
+    lastAction: "Sala aberta — a paz do Senhor e boa sorte 🙏",
     lastSeatAction: null,
     turnSeconds: defaultTurnSeconds(),
     turnDeadline: null,
     autoStartNext: true,
     showdownUntil: null,
+    chat: [],
     updatedAt: Date.now(),
   };
 }

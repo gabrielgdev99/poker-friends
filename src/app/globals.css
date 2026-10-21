@@ -1,12 +1,13 @@
 @import "tailwindcss";
 
 :root {
-  --felt-deep: #04150f;
-  --felt: #0d3d28;
-  --felt-lit: #1a5c3a;
+  /* Warm church-hall night: wood + olive + candle gold (not purple) */
+  --felt-deep: #120c06;
+  --felt: #1a4530;
+  --felt-lit: #2a6b3e;
   --amber: #f0b429;
-  --cream: #f7f3ea;
-  --wood: #3d2a14;
+  --cream: #f7f0e4;
+  --wood: #4a3218;
   --background: var(--felt-deep);
   --foreground: var(--cream);
 }

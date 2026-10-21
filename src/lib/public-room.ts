@@ -1,7 +1,14 @@
+import { describeMyHand } from "@/lib/poker/hand-hint";
 import type { PublicRoom, Room } from "@/lib/types";
 
 export function toPublicRoom(room: Room, viewerId?: string): PublicRoom {
   const showAll = room.status === "showdown";
+  const me = viewerId ? room.players.find((p) => p.id === viewerId) : undefined;
+  const myHandHint =
+    me && !me.folded && (room.status === "playing" || room.status === "showdown")
+      ? describeMyHand(me.hole, room.community)
+      : null;
+
   return {
     code: room.code,
     hostId: room.hostId,
@@ -25,8 +32,10 @@ export function toPublicRoom(room: Room, viewerId?: string): PublicRoom {
     turnDeadline: room.turnDeadline ?? null,
     autoStartNext: !!room.autoStartNext,
     showdownUntil: room.showdownUntil ?? null,
+    chat: room.chat ?? [],
     updatedAt: room.updatedAt,
     serverNow: Date.now(),
+    myHandHint,
     players: room.players.map((p) => {
       const reveal = showAll || p.id === viewerId;
       return {

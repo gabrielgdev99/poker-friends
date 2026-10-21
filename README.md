@@ -88,15 +88,15 @@ Após deploy, confira `GET /api/rooms` → `"store":"redis"`. Se vier `"memory"`
 - UX: barra de countdown, “Sua vez!”, presets ½ pote / pote / all-in, marcas D / SB / BB, rua (Pré-flop…).
 - Showdown curto + **Auto próxima mão** (anfitrião pode desligar).
 
-## Bots (teste solo)
+## Bots + chat (galera da igreja)
 
 No lobby (ou após showdown), o **anfitrião** pode:
 
-1. **Adicionar bot** — ocupa o próximo assento livre (até 10), nome `Bot 1`, `Bot 2`…
-2. **Remover Bot N** — só entre mãos
-3. **Iniciar mão** — bots agem no servidor (heurística simples: check/call barato, fold lixo, raise ocasional)
+1. **Chamar irmão bot** — assento livre (até 10); nomes tipo “Irmão Bot”, “Diácono Bluff”…
+2. Remover bot — só entre mãos
+3. **Iniciar mão** — bots **pensam ~1–3s** antes de agir (server-side); timeout humano = check/fold
 
-Cada poll `GET /api/rooms/:code` e cada ação humana avançam a vez dos bots, então a mão não trava.
+Durante a mão: dica **“Você tem …”** (só suas cartas). Chat da mesa + emojis rápidos (Redis, rate-limit).
 
 ## Admin
 

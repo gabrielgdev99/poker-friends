@@ -44,6 +44,15 @@ export type SeatAction = {
   label: string;
 };
 
+export type ChatMessage = {
+  id: string;
+  at: number;
+  playerId: string;
+  nickname: string;
+  text: string;
+  kind: "text" | "emoji";
+};
+
 export type Room = {
   code: string;
   hostId: string;
@@ -73,6 +82,8 @@ export type Room = {
   autoStartNext: boolean;
   /** Epoch ms when showdown reveal ends (for auto-start). */
   showdownUntil: number | null;
+  /** In-room chat (short history). */
+  chat: ChatMessage[];
   updatedAt: number;
 };
 
@@ -86,4 +97,6 @@ export type PublicRoom = Omit<Room, "deck" | "players"> & {
   players: PublicPlayer[];
   /** Server time for client timer sync. */
   serverNow: number;
+  /** Viewer-only hand strength / draw hint. */
+  myHandHint: string | null;
 };
