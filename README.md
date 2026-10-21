@@ -79,6 +79,8 @@ UPSTASH_REDIS_REST_TOKEN=AXxxxx
 
 Salas no Redis expiram em **24h** (TTL renovado a cada save).
 
+Após deploy, confira `GET /api/rooms` → `"store":"redis"`. Se vier `"memory"`, as salas somem entre requests.
+
 ## Mesa / timer
 
 - Timer de decisão **server-side** (Redis): default **18s** (`TURN_SECONDS` ou ajuste do anfitrião: 12/18/25/30).
