@@ -1,25 +1,24 @@
 "use client";
 
 import Link from "next/link";
-import { signIn, signOut, useSession } from "next-auth/react";
+import { signIn, signOut } from "next-auth/react";
+import { usePlayer } from "@/components/PlayerProvider";
 
 export function AuthBar() {
-  const { data, status } = useSession();
+  const player = usePlayer();
 
-  if (status === "loading") {
+  if (player.mode === "loading") {
     return (
-      <p className="text-xs uppercase tracking-[0.2em] text-emerald-200/40">
-        …
-      </p>
+      <p className="text-xs uppercase tracking-[0.2em] text-emerald-200/40">…</p>
     );
   }
 
-  if (!data?.user) {
+  if (player.mode === "none") {
     return (
       <button
         type="button"
         onClick={() => signIn("google")}
-        className="border border-amber-200/40 px-4 py-2 text-sm text-amber-100 transition hover:bg-amber-500/10"
+        className="border border-amber-200/40 px-3 py-1.5 text-xs text-amber-100 transition hover:bg-amber-500/10 sm:px-4 sm:py-2 sm:text-sm"
       >
         Entrar com Google
       </button>
@@ -27,37 +26,46 @@ export function AuthBar() {
   }
 
   return (
-    <div className="flex items-center gap-3">
+    <div className="flex flex-wrap items-center justify-end gap-2 sm:gap-3">
       <Link
         href="/campeoes"
-        className="text-xs uppercase tracking-wider text-amber-200/70 hover:text-amber-300"
+        className="text-[0.65rem] uppercase tracking-wider text-amber-200/70 hover:text-amber-300 sm:text-xs"
       >
         Campeões
       </Link>
-      {data.user.isAdmin && (
+      {player.bankBalance != null && (
+        <span className="tabular-nums text-[0.65rem] text-amber-300/90 sm:text-xs">
+          🪙 {player.bankBalance.toLocaleString("pt-BR")}
+          {player.isGuest ? " local" : ""}
+        </span>
+      )}
+      {player.isAdmin && (
         <Link
           href="/admin"
-          className="text-xs uppercase tracking-wider text-amber-400 hover:text-amber-300"
+          className="text-[0.65rem] uppercase tracking-wider text-amber-400 hover:text-amber-300 sm:text-xs"
         >
           Admin
         </Link>
       )}
-      {data.user.image && (
+      {player.image && (
         // eslint-disable-next-line @next/next/no-img-element
         <img
-          src={data.user.image}
+          src={player.image}
           alt=""
-          className="h-8 w-8 rounded-full border border-amber-200/30"
+          className="h-7 w-7 rounded-full border border-amber-200/30 sm:h-8 sm:w-8"
           referrerPolicy="no-referrer"
         />
       )}
-      <span className="max-w-[10rem] truncate text-sm text-amber-100/80">
-        {data.user.name}
+      <span className="max-w-[7rem] truncate text-xs text-amber-100/80 sm:max-w-[10rem] sm:text-sm">
+        {player.isGuest ? `${player.name} · conv.` : player.name}
       </span>
       <button
         type="button"
-        onClick={() => signOut()}
-        className="text-xs uppercase tracking-wider text-emerald-200/50 hover:text-amber-200"
+        onClick={() => {
+          if (player.isGuest) void player.exitGuest();
+          else void signOut();
+        }}
+        className="text-[0.65rem] uppercase tracking-wider text-emerald-200/50 hover:text-amber-200 sm:text-xs"
       >
         Sair
       </button>

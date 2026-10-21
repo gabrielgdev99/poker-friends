@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { BUY_IN, GUEST_STACK, withdraw } from "@/lib/bank";
 import { joinRoom } from "@/lib/poker/engine";
 import { getProfile } from "@/lib/profile";
 import { toPublicRoom } from "@/lib/public-room";
@@ -10,7 +11,10 @@ type Ctx = { params: Promise<{ code: string }> };
 export async function POST(req: Request, ctx: Ctx) {
   const user = await requireUser();
   if (!user) {
-    return NextResponse.json({ error: "Faça login com Google" }, { status: 401 });
+    return NextResponse.json(
+      { error: "Faça login com Google ou continue como convidado" },
+      { status: 401 },
+    );
   }
 
   const { code } = await ctx.params;
@@ -31,15 +35,44 @@ export async function POST(req: Request, ctx: Ctx) {
     const nickname = displayNickname(
       body.nickname || profile.nickname,
       user,
-      "Jogador",
+      user.isGuest ? "Convidado" : "Jogador",
     );
+
+    const existing = room.players.find((p) => p.id === user.id);
+    const isNew = !existing;
+    const stack = user.isGuest ? GUEST_STACK : BUY_IN;
+    let bankBalance: number | null = null;
+
+    // New Google players: withdraw buy-in. Returning players keep table chips.
+    if (isNew && !user.isGuest) {
+      try {
+        const bank = await withdraw(user.id, stack);
+        bankBalance = bank.balance;
+      } catch (e) {
+        return NextResponse.json(
+          { error: e instanceof Error ? e.message : "Banco insuficiente" },
+          { status: 400 },
+        );
+      }
+    }
 
     joinRoom(room, user.id, nickname, {
       emoji: profile.emoji,
       chipColor: profile.chipColor,
     });
+    const me = room.players.find((p) => p.id === user.id);
+    if (me && isNew) {
+      me.chips = stack;
+    }
+
     await saveRoom(room);
-    return NextResponse.json({ playerId: user.id, room: toPublicRoom(room, user.id) });
+    return NextResponse.json({
+      playerId: user.id,
+      room: toPublicRoom(room, user.id),
+      buyIn: isNew ? stack : 0,
+      bankBalance,
+      isGuest: user.isGuest,
+    });
   } catch (e) {
     const msg = e instanceof Error ? e.message : "Erro";
     const status = msg.includes("Redis") ? 503 : 400;

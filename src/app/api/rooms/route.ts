@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { BUY_IN, GUEST_STACK, withdraw } from "@/lib/bank";
 import { randomCode } from "@/lib/codes";
 import { createRoom } from "@/lib/poker/engine";
 import { getProfile } from "@/lib/profile";
@@ -15,7 +16,10 @@ import {
 export async function POST(req: Request) {
   const user = await requireUser();
   if (!user) {
-    return NextResponse.json({ error: "Faça login com Google" }, { status: 401 });
+    return NextResponse.json(
+      { error: "Faça login com Google ou continue como convidado" },
+      { status: 401 },
+    );
   }
 
   try {
@@ -36,9 +40,23 @@ export async function POST(req: Request) {
   const nickname = displayNickname(
     body.nickname || profile.nickname,
     user,
-    "Anfitrião",
+    user.isGuest ? "Convidado" : "Anfitrião",
   );
   const playerId = user.id;
+  const stack = user.isGuest ? GUEST_STACK : BUY_IN;
+
+  let bankBalance: number | null = null;
+  if (!user.isGuest) {
+    try {
+      const bank = await withdraw(user.id, stack);
+      bankBalance = bank.balance;
+    } catch (e) {
+      return NextResponse.json(
+        { error: e instanceof Error ? e.message : "Banco insuficiente" },
+        { status: 400 },
+      );
+    }
+  }
 
   let code = randomCode();
   for (let i = 0; i < 8; i++) {
@@ -51,10 +69,20 @@ export async function POST(req: Request) {
   if (host) {
     host.emoji = profile.emoji;
     host.chipColor = profile.chipColor;
+    host.chips = stack;
   }
   try {
     await saveRoomVerified(room);
   } catch (e) {
+    // refund Google buy-in if room failed to persist
+    if (!user.isGuest) {
+      try {
+        const { deposit } = await import("@/lib/bank");
+        await deposit(user.id, stack);
+      } catch {
+        /* ignore */
+      }
+    }
     return NextResponse.json(
       {
         error: e instanceof Error ? e.message : "Falha ao criar sala",
@@ -69,6 +97,9 @@ export async function POST(req: Request) {
     playerId,
     room: toPublicRoom(room, playerId),
     store: storeMode(),
+    buyIn: stack,
+    bankBalance,
+    isGuest: user.isGuest,
   });
 }
 

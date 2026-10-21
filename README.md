@@ -12,9 +12,8 @@ Texas Hold'em cash-style para jogar com amigos. Salas privadas por código curto
 
 ## Como jogar localmente
 
-1. Copie `.env.example` → `.env.local` e preencha Auth + (opcional) Redis.  
-   Segredo e checklist: ver também o doc de env do projeto (`docs/vercel-env.md` no agent store / README abaixo).
-2. Configure o OAuth no Google (redirect local abaixo).
+1. Copie `.env.example` → `.env.local` e preencha Auth + (opcional) Redis.
+2. Configure o OAuth no Google (redirect local abaixo) — opcional se for só convidado.
 3. Rode:
 
 ```bash
@@ -24,12 +23,23 @@ npm run dev
 
 Abra [http://localhost:3000](http://localhost:3000).
 
-1. **Entrar com Google**
-2. Ajuste o apelido (padrão = nome do Google) → **Criar sala**
-3. Compartilhe o código; outro jogador logado entra e senta
-4. Anfitrião → **Adicionar bot** (assentos vazios) se estiver sozinho
-5. Anfitrião → **Iniciar mão** (mín. 2 sentados, humanos e/ou bots)
-6. Fold / Check / Call / Bet / Raise — bots jogam sozinhos no turno deles
+1. **Entrar com Google** *ou* **Continuar como convidado**
+2. Ajuste apelido / estilo → **Criar sala** (ou entre numa mesa ativa)
+3. Compartilhe o código; amigos entram (Google ou convidado)
+4. Anfitrião → bots / blinds / **Iniciar mão**
+5. Fold / Check / Call / Bet / Raise
+
+### Convidado vs Google
+
+| | Google | Convidado |
+|--|--------|-----------|
+| Identidade | OAuth JWT | Cookie `poker_guest` + `localStorage` |
+| Banco de fichas | Redis (`poker:bank:{id}`) — começa com **10.000** | **localStorage** — começa com **5.000** |
+| Buy-in na sala | **1.000** saem do banco | **1.000** saem do banco local |
+| Ao sair da mesa | fichas da mesa voltam ao banco Redis | voltam ao banco local |
+| Recarga diária | **+2.500** / 24h | — (só fichas locais) |
+
+Admin e rankings de “mesas conquistadas” usam conta Google; convidado joga normal nas salas.
 
 ## Google Cloud (OAuth)
 

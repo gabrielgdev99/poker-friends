@@ -12,5 +12,6 @@ export async function requireAdmin(): Promise<AuthUser | null> {
     name: session.user?.name,
     email,
     image: session.user?.image,
+    isGuest: false,
   };
 }

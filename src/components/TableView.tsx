@@ -1,10 +1,10 @@
 "use client";
 
-import { useSession } from "next-auth/react";
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useMemo, useRef, useState, useTransition } from "react";
 import { AuthBar } from "@/components/AuthBar";
 import { PlayingCard } from "@/components/PlayingCard";
+import { usePlayer } from "@/components/PlayerProvider";
 import { TableChat } from "@/components/TableChat";
 import { feltCss } from "@/lib/felt";
 import type { BotDifficulty, FeltAccent, PublicRoom, Street } from "@/lib/types";
@@ -49,8 +49,8 @@ function formatChips(n: number) {
 
 export function TableView({ code }: { code: string }) {
   const router = useRouter();
-  const { data: session, status } = useSession();
-  const playerId = session?.user?.id ?? "";
+  const player = usePlayer();
+  const playerId = player.id;
   const [room, setRoom] = useState<PublicRoom | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [fatal, setFatal] = useState(false);
@@ -67,13 +67,17 @@ export function TableView({ code }: { code: string }) {
   const joinStarted = useRef(false);
 
   useEffect(() => {
+    if (player.guest?.feltAccent) {
+      setFeltAccent(player.guest.feltAccent);
+      return;
+    }
     fetch("/api/profile")
       .then((r) => (r.ok ? r.json() : null))
       .then((d) => {
         if (d?.profile?.feltAccent) setFeltAccent(d.profile.feltAccent);
       })
       .catch(() => {});
-  }, []);
+  }, [player.guest?.feltAccent]);
 
   const applyRoom = useCallback((r: PublicRoom) => {
     if (typeof r.serverNow === "number") {
@@ -120,9 +124,10 @@ export function TableView({ code }: { code: string }) {
   }, [code, playerId, fatal, leaveMissingRoom, applyRoom]);
 
   useEffect(() => {
-    if (!playerId || joinStarted.current || fatal) return;
+    if (!playerId || player.mode === "loading" || player.mode === "none" || joinStarted.current || fatal)
+      return;
     joinStarted.current = true;
-    const nick = session?.user?.name?.slice(0, 16) || "Jogador";
+    const nick = player.name.slice(0, 16) || "Jogador";
     (async () => {
       const res = await fetch(`/api/rooms/${code}/join`, {
         method: "POST",
@@ -138,13 +143,31 @@ export function TableView({ code }: { code: string }) {
           );
           return;
         }
+        if (res.status === 401) {
+          setFatal(true);
+          setError("Faça login ou continue como convidado");
+          router.replace("/?login=1");
+          return;
+        }
         setFatal(true);
         setError(data.error ?? "Falha ao entrar na sala");
         return;
       }
+      if (player.isGuest && data.buyIn > 0) player.noteGuestBuyIn();
       applyRoom(data.room as PublicRoom);
     })();
-  }, [playerId, code, session?.user?.name, fatal, leaveMissingRoom, applyRoom]);
+  }, [
+    playerId,
+    player.mode,
+    player.name,
+    player.isGuest,
+    player.noteGuestBuyIn,
+    code,
+    fatal,
+    leaveMissingRoom,
+    applyRoom,
+    router,
+  ]);
 
   const myTurn =
     !!room &&
@@ -205,6 +228,11 @@ export function TableView({ code }: { code: string }) {
         setError(data.error ?? "Não deu pra sair");
         return;
       }
+      if (player.isGuest && typeof data.chipsReturned === "number") {
+        player.noteGuestReturn(data.chipsReturned);
+      } else {
+        await player.refreshBank();
+      }
       router.replace("/");
     });
   }
@@ -225,10 +253,10 @@ export function TableView({ code }: { code: string }) {
     };
   }, [room, now, clockSkew]);
 
-  if (status === "loading") {
+  if (player.mode === "loading" || player.mode === "none") {
     return (
       <div className="flex h-dvh items-center justify-center text-amber-100/70">
-        Entrando na mesa…
+        {player.mode === "none" ? "Faça login ou continue como convidado…" : "Entrando na mesa…"}
       </div>
     );
   }
