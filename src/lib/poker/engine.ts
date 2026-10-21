@@ -5,6 +5,7 @@ import { defaultBlindSchedule, onHandStarting } from "@/lib/poker/blinds";
 import { SHOWDOWN_MS, defaultTurnSeconds, resetTurnClock } from "@/lib/poker/clock";
 import type {
   BlindSchedule,
+  BotDifficulty,
   Player,
   PlayerAction,
   Room,
@@ -197,11 +198,25 @@ function resolveBustsAndTable(room: Room) {
 }
 
 /**
- * Host rematch: same room code & settings, fresh buy-in stacks, lobby.
- * Does not delete the room (leave ≠ encerrar). Call startHand after if 2+ seated.
+ * Host rematch: same room code — brand-new session.
+ * Reseats humans + restores bots with fresh buy-in stacks.
+ * Does not delete the room (leave ≠ encerrar).
  */
 export function prepareRematch(room: Room): Room {
   if (!room.tableEnded) throw new Error("A mesa ainda não acabou");
+
+  const max = roomMaxSeats(room);
+
+  // Snapshot bots before reset (bust clears seats; we put them back)
+  const botRoster = room.players
+    .filter((p) => p.isBot)
+    .map((p) => ({
+      id: p.id,
+      nickname: p.nickname,
+      botDifficulty: (p.botDifficulty ?? "medium") as BotDifficulty,
+      emoji: p.emoji || "🤖",
+      chipColor: p.chipColor || "#7dd3fc",
+    }));
 
   room.tableEnded = false;
   room.championId = null;
@@ -218,18 +233,41 @@ export function prepareRematch(room: Room): Room {
   room.sbSeat = null;
   room.bbSeat = null;
   room.currentBet = 0;
+  room.minRaise = 10;
   room.lastSeatAction = null;
-
-  // Fresh session blinds (keep schedule prefs: mode/every/multiplier)
+  room.handNumber = 0;
+  room.dealerSeat = 0;
   room.smallBlind = 5;
   room.bigBlind = 10;
-  room.minRaise = 10;
   if (room.blindSchedule) {
     room.blindSchedule.level = 0;
     room.blindSchedule.levelStartedAt = null;
     room.blindSchedule.handsAtLevel = 0;
   }
 
+  // Recreate any bot that vanished from the roster
+  for (const spec of botRoster) {
+    if (room.players.some((p) => p.id === spec.id)) continue;
+    room.players.push({
+      id: spec.id,
+      nickname: spec.nickname,
+      seat: null,
+      chips: REMATCH_STACK,
+      hole: null,
+      bet: 0,
+      folded: false,
+      allIn: false,
+      actedThisRound: false,
+      isBot: true,
+      botDifficulty: spec.botDifficulty,
+      busted: false,
+      emoji: spec.emoji,
+      chipColor: spec.chipColor,
+      avatarUrl: null,
+    });
+  }
+
+  // Fresh stacks + clear ghosts (all-in / fold / hole / busted)
   for (const p of room.players) {
     p.busted = false;
     p.chips = REMATCH_STACK;
@@ -238,11 +276,32 @@ export function prepareRematch(room: Room): Room {
     p.folded = false;
     p.allIn = false;
     p.actedThisRound = false;
-    // Keep seats so seated folks stay; busted already have seat=null and can sit
+    p.seat = null;
   }
 
-  room.lastAction =
-    "🙏 Nova rodada na mesma mesa! Sentem (quem faliu também) e o anfitrião inicia.";
+  // Seat everyone: host → other humans → bots (same count as before)
+  const host = room.players.find((p) => p.id === room.hostId);
+  const humans = room.players.filter((p) => !p.isBot && p.id !== room.hostId);
+  const bots = room.players.filter((p) => p.isBot);
+  const order = [...(host ? [host] : []), ...humans, ...bots];
+
+  let seat = 0;
+  for (const p of order) {
+    if (seat >= max) break;
+    p.seat = seat;
+    seat += 1;
+  }
+
+  // Drop bots that didn't fit; leave overflow humans unseated (can sit manually)
+  const unseatedBotIds = new Set(
+    room.players.filter((p) => p.isBot && p.seat === null).map((p) => p.id),
+  );
+  if (unseatedBotIds.size) {
+    room.players = room.players.filter((p) => !unseatedBotIds.has(p.id));
+  }
+
+  const seated = room.players.filter((p) => p.seat !== null).length;
+  room.lastAction = `🙏 De novo! ${seated} na mesa com fichas novas — mesma sala, boa sorte.`;
   room.updatedAt = Date.now();
   return room;
 }

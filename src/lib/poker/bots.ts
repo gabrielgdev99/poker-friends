@@ -1,5 +1,6 @@
 import { RANK_VALUE } from "@/lib/poker/cards";
 import { resetTurnClock } from "@/lib/poker/clock";
+import { BUY_IN } from "@/lib/bank-constants";
 import { applyAction, roomMaxSeats } from "@/lib/poker/engine";
 import type { BotDifficulty, Card, Player, PlayerAction, Room } from "@/lib/types";
 
@@ -208,7 +209,7 @@ export function addBot(room: Room, difficulty: BotDifficulty = "medium"): Player
     id: `bot-${Date.now()}-${seat}`,
     nickname,
     seat,
-    chips: 1000,
+    chips: BUY_IN,
     busted: false,
     hole: null,
     bet: 0,

@@ -9,13 +9,16 @@ import { getRoom, saveRoom } from "@/lib/store";
 type Ctx = { params: Promise<{ code: string }> };
 
 /**
- * Host/admin: “Jogar de novo” — same room code, fresh stacks, lobby.
- * If 2+ already seated, starts a hand. Does not delete the room.
+ * Host/admin: “Jogar de novo” — same room code, reseat everyone + bots,
+ * fresh buy-in stacks, then start a hand if 2+ seated.
  */
 export async function POST(_req: Request, ctx: Ctx) {
   const user = await requireUser();
   if (!user) {
-    return NextResponse.json({ error: "Faça login com Google ou continue como convidado" }, { status: 401 });
+    return NextResponse.json(
+      { error: "Faça login com Google ou continue como convidado" },
+      { status: 401 },
+    );
   }
 
   const { code } = await ctx.params;
@@ -39,22 +42,29 @@ export async function POST(_req: Request, ctx: Ctx) {
   try {
     prepareRematch(room);
     let started = false;
-    if (seatedPlayers(room).length >= 2) {
+    const n = seatedPlayers(room).length;
+    if (n >= 2) {
       try {
         startHand(room, room.hostId);
         tickRoom(room);
         started = true;
-      } catch {
-        // Lobby: waiting for seats — OK
+      } catch (e) {
+        room.lastAction =
+          e instanceof Error
+            ? `Pronto pra jogar — ${e.message}`
+            : "Pronto pra jogar — sentem e iniciem a mão.";
       }
     }
     await saveRoom(room);
     return NextResponse.json({
       room: toPublicRoom(room, user.id),
       started,
+      seated: n,
       message: started
-        ? "Nova mão — a paz do Senhor e boa sorte!"
-        : "Mesa pronta — sentem pelo menos 2 e o anfitrião inicia a mão.",
+        ? "Nova mesa — a paz do Senhor e boa sorte!"
+        : n < 2
+          ? "Mesa resetada — precisa de pelo menos 2 sentados."
+          : "Mesa resetada — toque em Iniciar mão no menu.",
     });
   } catch (e) {
     return NextResponse.json(

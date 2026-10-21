@@ -466,7 +466,8 @@ export function TableView({ code }: { code: string }) {
               {champ ? `${champ.emoji || "🏆"} ${champ.nickname}` : "Fim de mesa"}
             </p>
             <p className="mt-2 text-sm leading-relaxed text-amber-100/65">
-              A paz do Senhor! Quem faliu pode sentar de novo. Mesma sala{" "}
+              A paz do Senhor! Jogar de novo reseata todo mundo (e os bots) com
+              fichas novas na sala{" "}
               <span className="font-mono tracking-widest text-amber-200/80">
                 {room.code}
               </span>
@@ -501,15 +502,15 @@ export function TableView({ code }: { code: string }) {
                   Encerrar mesa
                 </button>
                 <p className="text-[0.65rem] text-amber-100/40">
-                  Jogar de novo mantém a sala. Encerrar apaga pra todo mundo.
+                  De novo = mesma sala, sentados de novo. Encerrar apaga pra todo
+                  mundo.
                 </p>
               </div>
             ) : (
               <div className="mt-4 flex flex-col gap-2">
                 <p className="rounded-full bg-white/5 px-3 py-2 text-xs text-amber-100/55">
                   Aguardando o anfitrião dar o{" "}
-                  <span className="text-amber-200">Jogar de novo</span>
-                  {canSit ? " — toque num assento livre" : ""}.
+                  <span className="text-amber-200">Jogar de novo</span>.
                 </p>
                 <button
                   type="button"
