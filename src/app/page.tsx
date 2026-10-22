@@ -4,11 +4,15 @@ import { HomeClient } from "@/components/HomeClient";
 
 export default function Home() {
   return (
-    <main className="pf-shell pf-shell--landing">
+    <main className="home-shell">
       <Suspense
         fallback={
-          <div className="pf-gate pf-gate--plain">
-            <p className="pf-note">Carregando…</p>
+          <div className="home-screen">
+            <div className="home-felt">
+              <div className="home-oval">
+                <p className="home-center home-kicker">Carregando…</p>
+              </div>
+            </div>
           </div>
         }
       >
