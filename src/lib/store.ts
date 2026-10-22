@@ -1,5 +1,7 @@
 import { Redis } from "@upstash/redis";
+import { deposit } from "@/lib/bank";
 import { normalizeRoom } from "@/lib/poker/clock";
+import { isQuietExpired } from "@/lib/quiet";
 import { flushStatsQueue } from "@/lib/stats";
 import type { Room } from "@/lib/types";
 
@@ -74,7 +76,7 @@ function parseRoom(data: unknown): Room | null {
   return normalizeRoom(room);
 }
 
-export async function getRoom(code: string): Promise<Room | null> {
+async function readRoom(code: string): Promise<Room | null> {
   const key = PREFIX + code.toUpperCase().trim();
   const r = redis();
   if (r) {
@@ -90,6 +92,16 @@ export async function getRoom(code: string): Promise<Room | null> {
   }
   const mem = memory().get(key);
   return mem ? normalizeRoom(mem) : null;
+}
+
+export async function getRoom(code: string): Promise<Room | null> {
+  const room = await readRoom(code);
+  if (!room) return null;
+  // ponytail: sweep on read, not a cron. A hand in progress is kept.
+  // Redis still drops untouched keys after 24h via the existing EX.
+  if (!isQuietExpired(room)) return room;
+  await retireRoom(room);
+  return null;
 }
 
 export async function saveRoom(room: Room): Promise<void> {
@@ -143,6 +155,22 @@ export async function deleteRoom(code: string): Promise<boolean> {
     return n > 0;
   }
   return memory().delete(key);
+}
+
+/** Delete the room, then return Google table chips. One winner if two reads race. */
+export async function retireRoom(room: Room): Promise<boolean> {
+  const removed = await deleteRoom(room.code);
+  if (!removed) return false;
+  for (const p of room.players) {
+    if (p.isBot || p.id.startsWith("guest_")) continue;
+    if (p.chips <= 0) continue;
+    try {
+      await deposit(p.id, p.chips);
+    } catch {
+      /* best effort */
+    }
+  }
+  return true;
 }
 
 export async function listRooms(): Promise<Room[]> {

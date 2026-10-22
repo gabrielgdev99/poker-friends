@@ -132,6 +132,11 @@ export type Room = {
   championId: string | null;
   /** Flushed to Redis leaderboards on save; not for clients. */
   statsQueue: StatsQueue | null;
+  /**
+   * Epoch ms when the room last had no hand in progress.
+   * Chat and polls do not refresh it. Playing rooms ignore it.
+   */
+  quietSince: number;
   updatedAt: number;
 };
 
@@ -141,7 +146,7 @@ export type PublicPlayer = Omit<Player, "hole"> & {
   holeCount: number;
 };
 
-export type PublicRoom = Omit<Room, "deck" | "players" | "statsQueue"> & {
+export type PublicRoom = Omit<Room, "deck" | "players" | "statsQueue" | "quietSince"> & {
   players: PublicPlayer[];
   /** Server time for client timer sync. */
   serverNow: number;

@@ -8,6 +8,7 @@ import { createPortal } from "react-dom";
 import { AuthBar } from "@/components/AuthBar";
 import { usePlayer } from "@/components/PlayerProvider";
 import { feltCss } from "@/lib/felt";
+import { shareRoom } from "@/lib/share-room";
 import type { FeltAccent, UserProfile } from "@/lib/types";
 
 type ActiveRoom = {
@@ -47,6 +48,7 @@ export function HomeClient({ showcase }: { showcase?: ReactNode }) {
   const [options, setOptions] = useState<ProfileOptions | null>(null);
   const [showStyle, setShowStyle] = useState(false);
   const [claimMsg, setClaimMsg] = useState<string | null>(null);
+  const [copiedCode, setCopiedCode] = useState<string | null>(null);
 
   const loggedIn = player.mode === "google" || player.mode === "guest";
 
@@ -394,21 +396,37 @@ export function HomeClient({ showcase }: { showcase?: ReactNode }) {
             </p>
           ) : (
             rooms.map((r) => (
-              <button
-                key={r.code}
-                type="button"
-                disabled={pending}
-                onClick={() => join(r.code)}
-                className="home-room"
-              >
+              <div key={r.code} className="home-room">
                 <span className="home-room__code">{r.code}</span>
                 <span className="home-room__meta">
                   {STATUS_LABEL[r.status] ?? r.status} · {r.smallBlind}/{r.bigBlind} ·{" "}
                   {r.seatedCount}/{r.maxSeats ?? 10}
                 </span>
                 <span className="home-room__meta">{r.hostName}</span>
-                <span className="home-room__go">Entrar</span>
-              </button>
+                <div className="home-room__actions">
+                  <button
+                    type="button"
+                    disabled={pending}
+                    onClick={() => join(r.code)}
+                    className="home-room__go"
+                  >
+                    Entrar
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      void shareRoom(r.code).then((result) => {
+                        if (result !== "copied") return;
+                        setCopiedCode(r.code);
+                        window.setTimeout(() => setCopiedCode(null), 1600);
+                      });
+                    }}
+                    className="home-room__share"
+                  >
+                    {copiedCode === r.code ? "Copiado" : "Compartilhar"}
+                  </button>
+                </div>
+              </div>
             ))
           )}
         </div>

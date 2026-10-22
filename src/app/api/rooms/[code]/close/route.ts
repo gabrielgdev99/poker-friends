@@ -1,8 +1,7 @@
 import { NextResponse } from "next/server";
 import { canManageBots } from "@/lib/can-manage-bots";
-import { deposit } from "@/lib/bank";
 import { requireUser } from "@/lib/require-user";
-import { deleteRoom, getRoom } from "@/lib/store";
+import { getRoom, retireRoom } from "@/lib/store";
 
 type Ctx = { params: Promise<{ code: string }> };
 
@@ -24,18 +23,6 @@ export async function POST(_req: Request, ctx: Ctx) {
     );
   }
 
-  // Refund Google players' table chips before wipe
-  for (const p of room.players) {
-    if (p.isBot || p.id.startsWith("guest_")) continue;
-    if (p.chips > 0) {
-      try {
-        await deposit(p.id, p.chips);
-      } catch {
-        /* best effort */
-      }
-    }
-  }
-
-  await deleteRoom(room.code);
+  await retireRoom(room);
   return NextResponse.json({ ok: true, closed: true, code: room.code });
 }

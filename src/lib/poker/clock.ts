@@ -45,6 +45,7 @@ export function normalizeRoom(room: Room): Room {
   if (room.tableEnded == null) room.tableEnded = false;
   if (room.championId === undefined) room.championId = null;
   if (room.statsQueue === undefined) room.statsQueue = null;
+  if (typeof room.quietSince !== "number") room.quietSince = room.updatedAt || Date.now();
   if (room.maxSeats == null || room.maxSeats < 2 || room.maxSeats > 10) {
     room.maxSeats = 10;
   } else {

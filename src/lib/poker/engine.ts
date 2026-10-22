@@ -222,6 +222,7 @@ export function prepareRematch(room: Room): Room {
   room.championId = null;
   room.autoStartNext = true;
   room.status = "lobby";
+  room.quietSince = Date.now();
   room.winners = null;
   room.community = [];
   room.deck = [];
@@ -320,6 +321,7 @@ function awardPotTo(room: Room, winners: Player[], handName: string) {
   room.pot = 0;
   room.winners = result;
   room.status = "showdown";
+  room.quietSince = Date.now();
   room.actingSeat = null;
   room.turnDeadline = null;
   room.showdownUntil = Date.now() + SHOWDOWN_MS;
@@ -336,6 +338,7 @@ function showdown(room: Room) {
   const contenders = room.players.filter((p) => p.seat !== null && !p.folded && p.hole);
   if (contenders.length === 0) {
     room.status = "lobby";
+    room.quietSince = Date.now();
     return;
   }
   if (contenders.length === 1) {
@@ -407,6 +410,7 @@ export function createRoom(
     tableEnded: false,
     championId: null,
     statsQueue: null,
+    quietSince: Date.now(),
     updatedAt: Date.now(),
   };
 }
@@ -490,6 +494,7 @@ export function startHand(room: Room, requesterId: string): Room {
 
   // Clear showdown → lobby first if needed
   room.status = "lobby";
+  room.quietSince = Date.now();
   room.winners = null;
   room.community = [];
   room.pot = 0;

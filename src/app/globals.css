@@ -1816,14 +1816,70 @@ body {
   color: var(--fc-ink-mute);
 }
 
+.home-room__actions {
+  display: flex;
+  max-width: 100%;
+  align-items: center;
+  gap: 0.35rem;
+  margin-top: 0.2rem;
+}
+
 .home-room__go {
-  margin-top: 0.15rem;
+  border: 0;
   border-radius: 999px;
   background: #fbbf24;
   padding: 0.08rem 0.45rem;
   font-size: 0.62rem;
   font-weight: 800;
   color: #1a1208;
+}
+
+.home-room__share {
+  min-width: 0;
+  overflow: hidden;
+  border: 0;
+  background: transparent;
+  padding: 0;
+  font-size: 0.58rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-overflow: ellipsis;
+  text-transform: uppercase;
+  white-space: nowrap;
+  color: var(--fc-clay-light);
+}
+
+.table-rotate {
+  display: none;
+}
+
+@media (orientation: portrait) and (max-width: 900px) {
+  .table-rotate {
+    position: fixed;
+    z-index: 80;
+    inset: 0;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 0.35rem;
+    padding: 1.5rem;
+    text-align: center;
+    background: radial-gradient(ellipse at center, #163528 0%, #0c1612 42%, #070a08 100%);
+    color: var(--fc-ink);
+  }
+
+  .table-rotate strong {
+    font-family: var(--font-display), Georgia, serif;
+    font-size: 1.7rem;
+    color: var(--fc-wax);
+  }
+
+  .table-rotate p {
+    max-width: 16rem;
+    font-size: 0.95rem;
+    color: var(--fc-ink-mute);
+  }
 }
 
 .home-dock {

@@ -13,6 +13,7 @@ import { usePlayer } from "@/components/PlayerProvider";
 import { TableChat } from "@/components/TableChat";
 import { feltCss } from "@/lib/felt";
 import { seatRingPositions } from "@/lib/poker/seat-layout";
+import { shareRoom } from "@/lib/share-room";
 import type { BotDifficulty, FeltAccent, PublicRoom, Street } from "@/lib/types";
 
 const STREET_LABEL: Record<Street, string> = {
@@ -44,6 +45,7 @@ export function TableView({ code }: { code: string }) {
   const [botDifficulty, setBotDifficulty] = useState<BotDifficulty>("medium");
   const [feltAccent, setFeltAccent] = useState<FeltAccent>("olive");
   const [hostOpen, setHostOpen] = useState(false);
+  const [shareLabel, setShareLabel] = useState("Compartilhar");
   const [preAction, setPreAction] = useState<PreAction | null>(null);
   const wasMyTurn = useRef(false);
   const preFired = useRef(false);
@@ -447,6 +449,20 @@ export function TableView({ code }: { code: string }) {
           </p>
         </div>
         <div className="flex items-center gap-2">
+          <button
+            type="button"
+            onClick={() => {
+              void shareRoom(room.code).then((result) => {
+                if (result !== "copied") return;
+                setShareLabel("Copiado");
+                window.setTimeout(() => setShareLabel("Compartilhar"), 1600);
+              });
+            }}
+            title="Qualquer um na mesa pode mandar o link. Quem abrir entra direto."
+            className="action-pill rounded-full border border-white/10 bg-white/5 px-3 py-1 text-[0.65rem] text-[var(--fc-wax)] backdrop-blur-sm"
+          >
+            {shareLabel}
+          </button>
           <button
             type="button"
             disabled={pending}
