@@ -39,6 +39,8 @@ export type Player = {
   chips: number;
   hole: Card[] | null;
   bet: number;
+  /** Chips this player put in during the current hand (all streets). */
+  contributed: number;
   folded: boolean;
   allIn: boolean;
   actedThisRound: boolean;
@@ -137,16 +139,23 @@ export type Room = {
    * Chat and polls do not refresh it. Playing rooms ignore it.
    */
   quietSince: number;
+  /** Chips left in the pot by someone who left mid-hand. They cannot win them. */
+  dropped: { contributed: number }[];
+  /** When set, the board runs out one street at a time (all-in). */
+  runoutUntil: number | null;
   updatedAt: number;
 };
 
 /** Public view: hole cards hidden except for viewer / showdown. */
-export type PublicPlayer = Omit<Player, "hole"> & {
+export type PublicPlayer = Omit<Player, "hole" | "contributed"> & {
   hole: Card[] | null;
   holeCount: number;
 };
 
-export type PublicRoom = Omit<Room, "deck" | "players" | "statsQueue" | "quietSince"> & {
+export type PublicRoom = Omit<
+  Room,
+  "deck" | "players" | "statsQueue" | "quietSince" | "dropped" | "runoutUntil"
+> & {
   players: PublicPlayer[];
   /** Server time for client timer sync. */
   serverNow: number;

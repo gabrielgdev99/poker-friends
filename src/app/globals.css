@@ -588,6 +588,41 @@ body {
   gap: 0.12rem;
 }
 
+.seat-face {
+  position: relative;
+  display: grid;
+  flex: none;
+}
+
+.seat-medal,
+.seat-timer {
+  position: absolute;
+  top: 50%;
+  z-index: 3;
+  transform: translateY(-50%);
+  line-height: 1;
+  pointer-events: none;
+}
+
+.seat-medal {
+  right: calc(100% + 1px);
+  font-size: 0.85rem;
+  filter: drop-shadow(0 1px 1px rgba(0, 0, 0, 0.45));
+}
+
+.seat-timer {
+  left: calc(100% + 1px);
+  min-width: 1.15rem;
+  border-radius: 999px;
+  background: #1a1208;
+  padding: 0.08rem 0.22rem;
+  color: #f5c84a;
+  font-size: 0.62rem;
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.4);
+}
+
 .seat-ring {
   display: grid;
   width: 2.35rem;
@@ -859,16 +894,32 @@ body {
   line-height: 0.9;
 }
 
+.playing-card__idx span {
+  display: block;
+}
+
 .playing-card--hero .playing-card__idx {
   top: 0.2rem;
   left: 0.22rem;
+  font-size: 0.72rem;
+}
+
+/* Board and seat cards are too narrow for a center pip plus two corners. */
+.playing-card--board .playing-card__idx,
+.playing-card--seat .playing-card__idx {
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  line-height: 0.82;
+}
+
+.playing-card--board .playing-card__idx {
   font-size: 0.78rem;
 }
 
 .playing-card--seat .playing-card__idx {
-  top: 0;
-  left: 0.02rem;
-  font-size: 0.42rem;
+  font-size: 0.46rem;
 }
 
 .playing-card__idx--rev {
@@ -880,6 +931,8 @@ body {
 }
 
 .playing-card--hero .playing-card__idx--rev {
+  top: auto;
+  left: auto;
   right: 0.22rem;
   bottom: 0.2rem;
 }
@@ -894,20 +947,60 @@ body {
 }
 
 .playing-card--hero .playing-card__pip {
-  font-size: 1.55rem;
+  top: 58%;
+  font-size: 1.05rem;
 }
 
-.playing-card--board .playing-card__pip {
-  font-size: 1.15rem;
-}
-
-.playing-card--seat .playing-card__pip {
-  display: none;
+.table-play {
+  padding-bottom: calc(6.6rem + env(safe-area-inset-bottom));
 }
 
 .table-dock {
-  background:
-    linear-gradient(180deg, rgba(10, 16, 12, 0.2), rgba(10, 16, 12, 0.94) 28%);
+  position: absolute;
+  right: 0;
+  bottom: 0;
+  left: 0;
+  z-index: 30;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 0.2rem;
+  height: calc(6.6rem + env(safe-area-inset-bottom));
+  padding: 0 0.75rem max(0.35rem, env(safe-area-inset-bottom));
+  pointer-events: none;
+  background: linear-gradient(180deg, transparent, rgba(10, 16, 12, 0.92) 28%);
+}
+
+.table-dock > * {
+  pointer-events: auto;
+}
+
+.table-dock__hint {
+  max-width: min(36rem, calc(100% - 7.5rem));
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 0.68rem;
+  line-height: 1;
+  color: rgba(254, 243, 199, 0.7);
+}
+
+.table-dock__row {
+  display: flex;
+  width: min(36rem, calc(100% - 7.5rem));
+  align-items: flex-end;
+  justify-content: center;
+  gap: 0.55rem;
+}
+
+.table-dock__actions {
+  display: flex;
+  min-width: 0;
+  flex: 1;
+  flex-direction: column;
+  justify-content: flex-end;
+  gap: 0.22rem;
 }
 
 .table-raise {
@@ -919,12 +1012,22 @@ body {
 
 .hero-holes {
   display: flex;
-  gap: 0.35rem;
-  border-radius: 0.9rem;
+  flex: none;
+  gap: 0.28rem;
+  border-radius: 0.7rem;
   border: 1px solid rgba(255, 255, 255, 0.08);
   background: rgba(18, 14, 8, 0.92);
-  padding: 0.28rem 0.4rem 0.22rem;
+  padding: 0.18rem 0.28rem 0.14rem;
   box-shadow: 0 8px 18px rgba(0, 0, 0, 0.28);
+}
+
+@media (max-height: 520px) {
+  .playing-card--hero {
+    width: 2.05rem;
+  }
+  .table-dock .action-pill.h-10 {
+    height: 2.05rem;
+  }
 }
 
 @media (max-width: 640px) {
@@ -936,7 +1039,10 @@ body {
   }
   .playing-card--board,
   .board-slot {
-    width: 1.28rem;
+    width: 1.72rem;
+  }
+  .playing-card--board .playing-card__idx {
+    font-size: 0.62rem;
   }
   .seat-ring {
     width: 1.7rem;
@@ -1307,6 +1413,26 @@ body {
   border-bottom: 1px solid rgba(242, 235, 224, 0.08);
   padding: 0.45rem 0;
   font-size: 0.9rem;
+}
+
+.pf-rank__who {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: 0.28rem;
+}
+
+.pf-rank__name {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.pf-medal {
+  flex: none;
+  font-size: 0.95rem;
+  line-height: 1;
 }
 
 .pf-boards {

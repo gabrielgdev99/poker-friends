@@ -46,14 +46,16 @@ export function PlayingCard({
         {rank}
         <span>{suit}</span>
       </span>
-      <span className="playing-card__pip" aria-hidden>
-        {suit}
-      </span>
-      {resolved !== "seat" && (
-        <span className="playing-card__idx playing-card__idx--rev" aria-hidden>
-          {rank}
-          <span>{suit}</span>
-        </span>
+      {resolved === "hero" && (
+        <>
+          <span className="playing-card__pip" aria-hidden>
+            {suit}
+          </span>
+          <span className="playing-card__idx playing-card__idx--rev" aria-hidden>
+            {rank}
+            <span>{suit}</span>
+          </span>
+        </>
       )}
     </div>
   );

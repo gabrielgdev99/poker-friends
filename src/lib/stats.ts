@@ -50,7 +50,7 @@ async function bump(
     const cur = (await r.hgetall<Record<string, string>>(key)) || {};
     const row: LeaderRow = {
       id,
-      nickname: nickname || cur.nickname || "Jogador",
+      nickname: cur.nickname || nickname || "Jogador",
       chipsWon: Number(cur.chipsWon || 0) + (delta.chips || 0),
       handsWon: Number(cur.handsWon || 0) + (delta.hands || 0),
       tablesWon: Number(cur.tablesWon || 0) + (delta.tables || 0),
@@ -76,11 +76,28 @@ async function bump(
   };
   mem.set(id, {
     id,
-    nickname: nickname || prev.nickname,
+    nickname: prev.nickname || nickname,
     chipsWon: prev.chipsWon + (delta.chips || 0),
     handsWon: prev.handsWon + (delta.hands || 0),
     tablesWon: prev.tablesWon + (delta.tables || 0),
   });
+}
+
+/** Keep the leaderboard name in sync when someone renames their profile. */
+export async function renameLeader(id: string, nickname: string): Promise<void> {
+  const nick = nickname.trim().slice(0, 16);
+  if (!id || !nick) return;
+  const r = redis();
+  if (r) {
+    const key = PREFIX + id;
+    const cur = (await r.hgetall<Record<string, string>>(key)) || {};
+    if (!cur.nickname && !cur.chipsWon && !cur.handsWon && !cur.tablesWon) return;
+    await r.hset(key, { nickname: nick });
+    return;
+  }
+  const prev = memory().get(id);
+  if (!prev) return;
+  memory().set(id, { ...prev, nickname: nick });
 }
 
 export async function flushStatsQueue(queue: StatsQueue | null | undefined): Promise<void> {

@@ -9,6 +9,8 @@ type Boards = {
   tablesWon: LeaderRow[];
 };
 
+const MEDAL = ["🥇", "🥈", "🥉"];
+
 function Board({
   title,
   subtitle,
@@ -36,9 +38,14 @@ function Board({
         <ol>
           {rows.map((r, i) => (
             <li key={`${valueKey}-${r.id}`} className="pf-rank">
-              <span style={{ minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                <span className="pf-note">{i + 1}. </span>
-                {r.nickname}
+              <span className="pf-rank__who">
+                <span className="pf-note">{i + 1}.</span>
+                {i < 3 ? (
+                  <span className="pf-medal" title={["Ouro", "Prata", "Bronze"][i]} aria-label={["Ouro", "Prata", "Bronze"][i]}>
+                    {MEDAL[i]}
+                  </span>
+                ) : null}
+                <span className="pf-rank__name">{r.nickname}</span>
               </span>
               <span className="pf-code" style={{ letterSpacing: 0, flex: "none" }}>
                 {format(r[valueKey])}

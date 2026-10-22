@@ -13,6 +13,9 @@ const BOT_SHORT: Record<BotDifficulty, string> = {
 
 type PublicPlayer = PublicRoom["players"][number];
 
+const MEDAL = { 1: "🥇", 2: "🥈", 3: "🥉" } as const;
+const MEDAL_NAME = { 1: "Ouro", 2: "Prata", 3: "Bronze" } as const;
+
 /** Seat on the ring: avatar, name, stack, blinds. Bets are rendered separately. */
 export function CompactSeat({
   player,
@@ -27,6 +30,7 @@ export function CompactSeat({
   isBb,
   timerLeft,
   timerPct,
+  medal,
   bubble,
   showCards,
   onSit,
@@ -44,6 +48,7 @@ export function CompactSeat({
   isBb: boolean;
   timerLeft?: number;
   timerPct?: number;
+  medal?: 1 | 2 | 3;
   bubble?: { id: string; text: string; kind: "text" | "emoji" } | null;
   showCards: boolean;
   onSit: () => void;
@@ -83,36 +88,48 @@ export function CompactSeat({
       ) : (
         player && (
           <span className={`seat-body ${folded ? "seat-folded" : ""}`}>
-            <span
-              className={`seat-ring ${isActing ? "seat-ring--acting seat-your-turn" : ""}`}
-              style={
-                isActing
-                  ? {
-                      background: `conic-gradient(#f5c84a ${pct}%, rgba(255,255,255,0.16) ${pct}%)`,
-                    }
-                  : undefined
-              }
-            >
+            <span className="seat-face">
+              {medal ? (
+                <span className={`seat-medal seat-medal--${medal}`} title={MEDAL_NAME[medal]} aria-label={MEDAL_NAME[medal]}>
+                  {MEDAL[medal]}
+                </span>
+              ) : null}
               <span
-                className="seat-avatar"
+                className={`seat-ring ${isActing ? "seat-ring--acting seat-your-turn" : ""}`}
                 style={
-                  folded
-                    ? undefined
-                    : { boxShadow: `inset 0 0 0 1.5px ${player.chipColor || "#e8b84a"}` }
+                  isActing
+                    ? {
+                        background: `conic-gradient(#f5c84a ${pct}%, rgba(255,255,255,0.16) ${pct}%)`,
+                      }
+                    : undefined
                 }
               >
-                {player.avatarUrl ? (
-                  // eslint-disable-next-line @next/next/no-img-element
-                  <img
-                    src={player.avatarUrl}
-                    alt=""
-                    className="h-full w-full object-cover"
-                    referrerPolicy="no-referrer"
-                  />
-                ) : (
-                  <span aria-hidden>{player.emoji || "🙏"}</span>
-                )}
+                <span
+                  className="seat-avatar"
+                  style={
+                    folded
+                      ? undefined
+                      : { boxShadow: `inset 0 0 0 1.5px ${player.chipColor || "#e8b84a"}` }
+                  }
+                >
+                  {player.avatarUrl ? (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img
+                      src={player.avatarUrl}
+                      alt=""
+                      className="h-full w-full object-cover"
+                      referrerPolicy="no-referrer"
+                    />
+                  ) : (
+                    <span aria-hidden>{player.emoji || "🙏"}</span>
+                  )}
+                </span>
               </span>
+              {isActing && timerLeft != null ? (
+                <span className="seat-timer" aria-label={`${timerLeft} segundos`}>
+                  {timerLeft}
+                </span>
+              ) : null}
             </span>
 
             <span className={`seat-plate ${isActing ? "seat-plate--acting" : ""} ${isMe ? "seat-plate--me" : ""}`}>
@@ -133,7 +150,6 @@ export function CompactSeat({
                 }
               >
                 {formatChips(player.chips)}
-                {isActing && timerLeft != null ? ` · ${timerLeft}s` : ""}
               </span>
               {folded && <span className="seat-flag">Fold</span>}
               {player.allIn && !folded && <span className="seat-flag">All-in</span>}

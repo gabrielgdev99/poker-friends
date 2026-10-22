@@ -3,6 +3,8 @@ import type { Room } from "@/lib/types";
 
 export const DEFAULT_TURN_SECONDS = 18;
 export const SHOWDOWN_MS = 4500;
+/** Pause between streets when the board runs out after an all-in. */
+export const RUNOUT_MS = 2000;
 
 export function defaultTurnSeconds(): number {
   const n = Number(process.env.TURN_SECONDS);
@@ -46,6 +48,8 @@ export function normalizeRoom(room: Room): Room {
   if (room.championId === undefined) room.championId = null;
   if (room.statsQueue === undefined) room.statsQueue = null;
   if (typeof room.quietSince !== "number") room.quietSince = room.updatedAt || Date.now();
+  if (!Array.isArray(room.dropped)) room.dropped = [];
+  if (room.runoutUntil === undefined) room.runoutUntil = null;
   if (room.maxSeats == null || room.maxSeats < 2 || room.maxSeats > 10) {
     room.maxSeats = 10;
   } else {
@@ -61,6 +65,7 @@ export function normalizeRoom(room: Room): Room {
     if (!p.emoji) p.emoji = p.isBot ? "🤖" : "🙏";
     if (!p.chipColor) p.chipColor = "#f0b429";
     if (p.avatarUrl === undefined) p.avatarUrl = null;
+    if (typeof p.contributed !== "number") p.contributed = 0;
   }
   return room;
 }

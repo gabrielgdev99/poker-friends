@@ -1,7 +1,7 @@
 import { maybeBumpBlinds } from "@/lib/poker/blinds";
 import { advanceBots } from "@/lib/poker/bots";
 import { resetTurnClock } from "@/lib/poker/clock";
-import { applyAction, startHand } from "@/lib/poker/engine";
+import { applyAction, startHand, stepRunout } from "@/lib/poker/engine";
 import type { Room } from "@/lib/types";
 
 export { DEFAULT_TURN_SECONDS, SHOWDOWN_MS, defaultTurnSeconds, resetTurnClock } from "@/lib/poker/clock";
@@ -45,6 +45,7 @@ export function maybeAutoStart(room: Room): boolean {
 /** Timeout → bots (after think) → blind schedule → auto-start. */
 export function tickRoom(room: Room): boolean {
   let changed = false;
+  if (stepRunout(room)) changed = true;
   if (maybeBumpBlinds(room)) changed = true;
   for (let i = 0; i < 12; i++) {
     const beforeStatus = room.status;

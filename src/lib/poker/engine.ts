@@ -1,8 +1,9 @@
 import { BUY_IN } from "@/lib/bank-constants";
 import { freshDeck, shuffle } from "@/lib/poker/cards";
-import { bestHand, compareHands } from "@/lib/poker/hand-eval";
+import { bestHand } from "@/lib/poker/hand-eval";
 import { defaultBlindSchedule, onHandStarting } from "@/lib/poker/blinds";
-import { SHOWDOWN_MS, defaultTurnSeconds, resetTurnClock } from "@/lib/poker/clock";
+import { RUNOUT_MS, SHOWDOWN_MS, defaultTurnSeconds, resetTurnClock } from "@/lib/poker/clock";
+import { splitPots } from "@/lib/poker/side-pots";
 import type {
   BlindSchedule,
   BotDifficulty,
@@ -62,6 +63,7 @@ function putChips(p: Player, amount: number, room: Room) {
   const pay = Math.min(amount, p.chips);
   p.chips -= pay;
   p.bet += pay;
+  p.contributed = (p.contributed || 0) + pay;
   room.pot += pay;
   if (p.chips === 0) p.allIn = true;
 }
@@ -105,12 +107,25 @@ function dealCommunity(room: Room, n: number) {
   }
 }
 
+function stillBetting(room: Room): boolean {
+  return room.players.filter((p) => p.seat !== null && !p.folded && !p.allIn).length > 1;
+}
+
+function beginRunout(room: Room, street: Street) {
+  room.actingSeat = null;
+  room.turnDeadline = null;
+  room.runoutUntil = Date.now() + RUNOUT_MS;
+  const name = street === "flop" ? "flop" : street === "turn" ? "turn" : "river";
+  room.lastAction = `All-in — ${name}`;
+}
+
 function advanceStreet(room: Room) {
   const order: (Street | null)[] = ["preflop", "flop", "turn", "river", null];
   const idx = order.indexOf(room.street);
   const next = order[idx + 1];
 
   if (!next) {
+    room.runoutUntil = null;
     showdown(room);
     return;
   }
@@ -121,6 +136,12 @@ function advanceStreet(room: Room) {
   if (next === "flop") dealCommunity(room, 3);
   if (next === "turn" || next === "river") dealCommunity(room, 1);
 
+  if (!stillBetting(room)) {
+    beginRunout(room, next);
+    return;
+  }
+
+  room.runoutUntil = null;
   const live = room.players.filter((p) => p.seat !== null && !p.folded);
   // HU: dealer (SB) acts first postflop; multiway: left of dealer
   const first =
@@ -130,23 +151,19 @@ function advanceStreet(room: Room) {
       : nextOccupiedSeat(room, room.dealerSeat, (p) => !p.folded && !p.allIn);
   room.actingSeat = first;
   if (room.status === "playing") resetTurnClock(room);
+}
 
-  // If everyone all-in, burn through remaining streets
-  if (first === null || bettingComplete(room)) {
-    if (room.players.filter((p) => p.seat !== null && !p.folded && !p.allIn).length <= 1) {
-      // run out board
-      while (room.street !== "river" && room.status === "playing") {
-        const cur: Street = room.street ?? "preflop";
-        const nxt: Street | null =
-          cur === "preflop" ? "flop" : cur === "flop" ? "turn" : cur === "turn" ? "river" : null;
-        if (!nxt) break;
-        room.street = nxt;
-        if (nxt === "flop") dealCommunity(room, 3);
-        if (nxt === "turn" || nxt === "river") dealCommunity(room, 1);
-      }
-      showdown(room);
-    }
+/** One street at a time after an all-in, so the board doesn't appear at once. */
+export function stepRunout(room: Room): boolean {
+  if (room.status !== "playing" || room.runoutUntil == null) return false;
+  if (Date.now() < room.runoutUntil) return false;
+  if (room.street === "river") {
+    room.runoutUntil = null;
+    showdown(room);
+    return true;
   }
+  advanceStreet(room);
+  return true;
 }
 
 function enqueueHandWins(room: Room, result: Winner[]) {
@@ -254,12 +271,13 @@ export function prepareRematch(room: Room): Room {
       nickname: spec.nickname,
       seat: null,
       chips: REMATCH_STACK,
-      hole: null,
-      bet: 0,
-      folded: false,
-      allIn: false,
-      actedThisRound: false,
-      isBot: true,
+    hole: null,
+    bet: 0,
+    contributed: 0,
+    folded: false,
+    allIn: false,
+    actedThisRound: false,
+    isBot: true,
       botDifficulty: spec.botDifficulty,
       busted: false,
       emoji: spec.emoji,
@@ -274,6 +292,7 @@ export function prepareRematch(room: Room): Room {
     p.chips = REMATCH_STACK;
     p.hole = null;
     p.bet = 0;
+    p.contributed = 0;
     p.folded = false;
     p.allIn = false;
     p.actedThisRound = false;
@@ -324,6 +343,7 @@ function awardPotTo(room: Room, winners: Player[], handName: string) {
   room.quietSince = Date.now();
   room.actingSeat = null;
   room.turnDeadline = null;
+  room.runoutUntil = null;
   room.showdownUntil = Date.now() + SHOWDOWN_MS;
   room.lastAction = `Showdown: ${result.map((w) => `assento ${w.seat + 1} +${w.amount}`).join(", ")}`;
   room.lastSeatAction = {
@@ -346,14 +366,47 @@ function showdown(room: Room) {
     return;
   }
 
-  const ranked = contenders.map((p) => ({
-    player: p,
-    hand: bestHand(p.hole!, room.community),
-  }));
-  ranked.sort((a, b) => compareHands(b.hand, a.hand));
-  const best = ranked[0].hand;
-  const winners = ranked.filter((r) => compareHands(r.hand, best) === 0).map((r) => r.player);
-  awardPotTo(room, winners, best.name);
+  const shares = [
+    ...room.players
+      .filter((p) => (p.contributed || 0) > 0)
+      .map((p) => {
+        const hand =
+          !p.folded && p.hole && p.seat !== null ? bestHand(p.hole, room.community) : null;
+        return {
+          seat: p.seat ?? -1,
+          contributed: p.contributed || 0,
+          folded: p.folded || p.seat === null,
+          score: hand?.score ?? [],
+          handName: hand?.name ?? "",
+        };
+      }),
+    ...room.dropped.map((d) => ({
+      seat: -1,
+      contributed: d.contributed,
+      folded: true,
+      score: [] as number[],
+      handName: "",
+    })),
+  ];
+  const wins = splitPots(shares);
+  for (const w of wins) {
+    const p = room.players.find((x) => x.seat === w.seat);
+    if (p) p.chips += w.amount;
+  }
+  room.pot = 0;
+  room.winners = wins;
+  room.status = "showdown";
+  room.quietSince = Date.now();
+  room.actingSeat = null;
+  room.turnDeadline = null;
+  room.runoutUntil = null;
+  room.showdownUntil = Date.now() + SHOWDOWN_MS;
+  room.lastAction = wins.length
+    ? `Potes: ${wins.map((w) => `assento ${w.seat + 1} +${w.amount}`).join(", ")}`
+    : "Showdown";
+  if (wins[0]) room.lastSeatAction = { seat: wins[0].seat, label: `+${wins[0].amount}` };
+  enqueueHandWins(room, wins);
+  resolveBustsAndTable(room);
 }
 
 export function createRoom(
@@ -369,6 +422,7 @@ export function createRoom(
     chips: 1000,
     hole: null,
     bet: 0,
+    contributed: 0,
     folded: false,
     allIn: false,
     actedThisRound: false,
@@ -411,6 +465,8 @@ export function createRoom(
     championId: null,
     statsQueue: null,
     quietSince: Date.now(),
+    dropped: [],
+    runoutUntil: null,
     updatedAt: Date.now(),
   };
 }
@@ -447,6 +503,7 @@ export function joinRoom(
     chips: 1000,
     hole: null,
     bet: 0,
+    contributed: 0,
     folded: false,
     allIn: false,
     actedThisRound: false,
@@ -502,9 +559,12 @@ export function startHand(room: Room, requesterId: string): Room {
   const seated = seatedPlayers(room);
   if (seated.length < 2) throw new Error("Precisa de pelo menos 2 jogadores sentados");
 
+  room.dropped = [];
+  room.runoutUntil = null;
   for (const p of room.players) {
     p.hole = null;
     p.bet = 0;
+    p.contributed = 0;
     p.folded = false;
     p.allIn = false;
     p.actedThisRound = false;
@@ -754,6 +814,9 @@ export function leaveRoom(room: Room, playerId: string): Room {
     room.lastAction = `${p.nickname} saiu da mesa`;
   }
 
+  if ((p.contributed || 0) > 0) {
+    room.dropped.push({ contributed: p.contributed });
+  }
   room.players = room.players.filter((x) => x.id !== playerId);
 
   if (room.hostId === playerId) {

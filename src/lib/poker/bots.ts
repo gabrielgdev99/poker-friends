@@ -2,6 +2,7 @@ import { RANK_VALUE } from "@/lib/poker/cards";
 import { resetTurnClock } from "@/lib/poker/clock";
 import { BUY_IN } from "@/lib/bank-constants";
 import { applyAction, roomMaxSeats } from "@/lib/poker/engine";
+import { bestHand } from "@/lib/poker/hand-eval";
 import type { BotDifficulty, Card, Player, PlayerAction, Room } from "@/lib/types";
 
 const BOT_NAMES = [
@@ -31,80 +32,45 @@ export function parseBotDifficulty(raw: unknown): BotDifficulty {
   return "medium";
 }
 
-type DiffTune = {
-  /** Extra willingness to open/bet when free. */
-  aggression: number;
-  /** Fold more often with weak hands facing a bet. */
-  foldWeak: number;
-  /** Raise more often with strong hands. */
-  raiseStrong: number;
-  /** Min strength to call a big bet. */
-  callFloor: number;
-  /** Prefer pot-aware raise sizing. */
-  smartSize: boolean;
-};
-
-function tune(d: BotDifficulty | null | undefined): DiffTune {
-  switch (d) {
-    case "easy":
-      return {
-        aggression: 0.08,
-        foldWeak: 0.35,
-        raiseStrong: 0.18,
-        callFloor: 0.12,
-        smartSize: false,
-      };
-    case "hard":
-      return {
-        aggression: 0.28,
-        foldWeak: 0.78,
-        raiseStrong: 0.55,
-        callFloor: 0.38,
-        smartSize: true,
-      };
-    default:
-      return {
-        aggression: 0.18,
-        foldWeak: 0.58,
-        raiseStrong: 0.38,
-        callFloor: 0.22,
-        smartSize: true,
-      };
-  }
-}
-
-function holeStrength(hole: Card[] | null): number {
-  if (!hole || hole.length < 2) return 0.2;
+/** Chen score. 72o is about 0, AA is 20. Used so bots fold junk instead of seeing every flop. */
+export function chenScore(hole: Card[] | null): number {
+  if (!hole || hole.length < 2) return 0;
   const [a, b] = hole;
-  const va = RANK_VALUE[a.rank];
-  const vb = RANK_VALUE[b.rank];
-  const high = Math.max(va, vb);
-  const low = Math.min(va, vb);
-  const suited = a.suit === b.suit;
-  const paired = va === vb;
-  if (paired) return 0.55 + high / 40;
-  let s = high / 20 + low / 40;
-  if (suited) s += 0.08;
-  if (high - low <= 2) s += 0.06;
-  if (high >= 12) s += 0.1;
-  return Math.min(0.95, Math.max(0.1, s));
+  const high = Math.max(RANK_VALUE[a.rank], RANK_VALUE[b.rank]);
+  const low = Math.min(RANK_VALUE[a.rank], RANK_VALUE[b.rank]);
+  let score =
+    high >= 14 ? 10 : high === 13 ? 8 : high === 12 ? 7 : high === 11 ? 6 : high / 2;
+  if (high === low) score = Math.max(score * 2, 5);
+  if (a.suit === b.suit) score += 2;
+  const gap = high - low - 1;
+  if (gap === 1) score -= 1;
+  else if (gap === 2) score -= 2;
+  else if (gap === 3) score -= 4;
+  else if (gap >= 4) score -= 5;
+  if (gap <= 1 && high < 12 && a.suit === b.suit) score += 1;
+  return score;
 }
 
-function raiseSize(room: Room, player: Player, strength: number, smart: boolean): number {
-  const minTo = room.currentBet === 0 ? room.bigBlind : room.currentBet + room.minRaise;
-  const stackTo = player.bet + player.chips;
-  if (!smart) {
-    const wild = room.bigBlind * (1 + Math.floor(Math.random() * 5));
-    return Math.min(stackTo, Math.max(minTo, player.bet + wild));
-  }
-  const pot = Math.max(room.pot, room.bigBlind * 2);
-  const want =
-    strength > 0.8
-      ? Math.max(minTo, Math.floor(pot * 0.9))
-      : strength > 0.55
-        ? Math.max(minTo, Math.floor(pot * 0.55))
-        : minTo;
-  return Math.min(stackTo, want);
+function lines(d: BotDifficulty | null | undefined): { open: number; threeBet: number } {
+  if (d === "easy") return { open: 6, threeBet: 12 };
+  if (d === "hard") return { open: 10, threeBet: 14 };
+  return { open: 8, threeBet: 13 };
+}
+
+/** Legal "raise to" in big-blind steps. Never a random pile of chips. */
+function sizedTo(room: Room, player: Player, wantTo: number): number {
+  const bb = Math.max(1, room.bigBlind);
+  const minTo = room.currentBet === 0 ? bb : room.currentBet + room.minRaise;
+  const snapped = Math.round(wantTo / bb) * bb;
+  const cap = player.bet + player.chips;
+  return Math.min(cap, Math.max(minTo, snapped));
+}
+
+function potBetTo(room: Room, player: Player, frac: number): number {
+  const pot = room.pot + Math.max(0, room.currentBet - player.bet);
+  const add = Math.max(room.bigBlind, pot * frac);
+  if (room.currentBet === 0) return sizedTo(room, player, add);
+  return sizedTo(room, player, room.currentBet + add);
 }
 
 export function decideBotAction(
@@ -112,44 +78,51 @@ export function decideBotAction(
   player: Player,
 ): { action: PlayerAction; amount?: number } {
   const toCall = Math.max(0, room.currentBet - player.bet);
-  const strength = holeStrength(player.hole);
-  const t = tune(player.botDifficulty);
-  const roll = Math.random();
+  const bb = Math.max(1, room.bigBlind);
+  const preflop = !room.community.length;
+  const chen = chenScore(player.hole);
+  const line = lines(player.botDifficulty);
+  const made = !preflop && player.hole ? bestHand(player.hole, room.community) : null;
+  const category = made?.score[0] ?? 0;
+
+  const bet = (to: number): { action: PlayerAction; amount: number } => {
+    const amount = to;
+    if (amount <= room.currentBet) return { action: toCall > 0 ? "call" : "check", amount };
+    return { action: room.currentBet === 0 ? "bet" : "raise", amount };
+  };
 
   if (toCall <= 0) {
-    if (roll < t.aggression + strength * 0.35 && player.chips > room.bigBlind) {
-      const raiseTo = raiseSize(room, player, strength, t.smartSize);
-      return { action: "bet", amount: raiseTo };
+    if (preflop) {
+      if (chen >= line.open && player.chips > bb) return bet(sizedTo(room, player, bb * 3));
+      return { action: "check" };
+    }
+    if (category >= 2) return bet(potBetTo(room, player, 2 / 3));
+    if (category === 1 && Math.random() < 0.6) return bet(potBetTo(room, player, 1 / 2));
+    if (player.botDifficulty === "hard" && room.street === "flop" && Math.random() < 0.2) {
+      return bet(potBetTo(room, player, 1 / 3));
     }
     return { action: "check" };
   }
 
-  const potOddsPressure = toCall / Math.max(1, room.pot + toCall);
-  const expensive = toCall > room.bigBlind * 2 || potOddsPressure > 0.35;
+  if (preflop) {
+    const facingOpen = toCall <= bb * 4;
+    if (chen >= line.threeBet && toCall <= bb * 8 && player.chips > toCall + bb) {
+      return bet(sizedTo(room, player, room.currentBet * 3));
+    }
+    if (chen >= line.open && facingOpen) return { action: "call" };
+    return { action: "fold" };
+  }
 
-  if (expensive && strength < t.callFloor + 0.15 && roll < t.foldWeak) {
-    return { action: "fold" };
-  }
-  if (strength < t.callFloor && expensive) {
-    return { action: "fold" };
-  }
-  // Easy bots sometimes call trash
-  if (player.botDifficulty === "easy" && strength < 0.25 && roll < 0.45 && !expensive) {
+  const cheap = toCall <= Math.max(bb * 2, room.pot * 0.45);
+  if (category >= 2) {
+    if (player.chips > toCall + room.minRaise && Math.random() < 0.45) {
+      return bet(potBetTo(room, player, 2 / 3));
+    }
     return { action: "call" };
   }
-
-  if (
-    strength > 0.55 &&
-    roll < t.raiseStrong + strength * 0.15 &&
-    player.chips > toCall + room.minRaise
-  ) {
-    const raiseTo = raiseSize(room, player, strength, t.smartSize);
-    if (raiseTo > room.currentBet) {
-      return { action: "raise", amount: raiseTo };
-    }
-  }
-
-  return { action: "call" };
+  if (category === 1 && cheap) return { action: "call" };
+  if (player.botDifficulty === "easy" && cheap && Math.random() < 0.15) return { action: "call" };
+  return { action: "fold" };
 }
 
 /**
@@ -213,6 +186,7 @@ export function addBot(room: Room, difficulty: BotDifficulty = "medium"): Player
     busted: false,
     hole: null,
     bet: 0,
+    contributed: 0,
     folded: false,
     allIn: false,
     actedThisRound: false,

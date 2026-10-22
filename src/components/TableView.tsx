@@ -47,6 +47,7 @@ export function TableView({ code }: { code: string }) {
   const [hostOpen, setHostOpen] = useState(false);
   const [shareLabel, setShareLabel] = useState("Compartilhar");
   const [preAction, setPreAction] = useState<PreAction | null>(null);
+  const [medals, setMedals] = useState<Map<string, 1 | 2 | 3>>(() => new Map());
   const wasMyTurn = useRef(false);
   const preFired = useRef(false);
   const streetRef = useRef<Street | null>(null);
@@ -66,6 +67,36 @@ export function TableView({ code }: { code: string }) {
       })
       .catch(() => {});
   }, [player.guest?.feltAccent, player.mode]);
+
+  useEffect(() => {
+    let cancelled = false;
+    async function load() {
+      const res = await fetch("/api/stats");
+      if (!res.ok) return;
+      const data = (await res.json().catch(() => null)) as {
+        chipsWon?: { id?: string }[];
+        handsWon?: { id?: string }[];
+        tablesWon?: { id?: string }[];
+      } | null;
+      if (!data || cancelled) return;
+      const next = new Map<string, 1 | 2 | 3>();
+      for (const rows of [data.chipsWon, data.handsWon, data.tablesWon]) {
+        rows?.slice(0, 3).forEach((row, i) => {
+          if (!row?.id) return;
+          const place = (i + 1) as 1 | 2 | 3;
+          const cur = next.get(row.id);
+          if (cur == null || place < cur) next.set(row.id, place);
+        });
+      }
+      if (!cancelled) setMedals(next);
+    }
+    void load();
+    const id = window.setInterval(() => void load(), 30_000);
+    return () => {
+      cancelled = true;
+      window.clearInterval(id);
+    };
+  }, []);
 
   const applyRoom = useCallback((r: PublicRoom) => {
     if (typeof r.serverNow === "number") {
@@ -424,7 +455,7 @@ export function TableView({ code }: { code: string }) {
     <div
       className="table-shell relative flex h-dvh max-h-dvh w-full max-w-full flex-col overflow-hidden bg-[radial-gradient(ellipse_at_center,#163528_0%,#0c1612_42%,#070a08_100%)] text-amber-50"
       style={{
-        ["--table-fab" as string]: canBet ? "12.5rem" : "8.25rem",
+        ["--table-fab" as string]: "8.5rem",
         ["--felt" as string]: felt.felt,
         ["--felt-lit" as string]: felt.feltLit,
       }}
@@ -551,8 +582,8 @@ export function TableView({ code }: { code: string }) {
         </p>
       )}
 
-      {/* Table stage — hero sits at the bottom, above the dock */}
-      <div className="relative mx-auto min-h-0 w-full max-w-[920px] flex-1 px-1.5 sm:px-3">
+      {/* Table stage — hero sits at the bottom, above the action band */}
+      <div className="table-play relative mx-auto min-h-0 w-full max-w-[920px] flex-1 px-1.5 sm:px-3">
         <div className="table-stage absolute inset-0">
           <div className="table-oval" style={{ ["--felt" as string]: felt.felt, ["--felt-lit" as string]: felt.feltLit }} />
 
@@ -638,6 +669,7 @@ export function TableView({ code }: { code: string }) {
                 isBb={room.bbSeat === seat && room.status === "playing"}
                 timerLeft={isActing ? timer.left : undefined}
                 timerPct={isActing ? timer.pct : undefined}
+                medal={p ? medals.get(p.id) : undefined}
                 bubble={seatBubbles.get(seat) ?? null}
                 showCards={showCards}
                 onSit={() => api("sit", { seat })}
@@ -654,143 +686,146 @@ export function TableView({ code }: { code: string }) {
         </p>
       )}
 
-      <div className="table-dock relative z-30 flex shrink-0 flex-col items-center gap-1.5 px-3 pb-[max(0.45rem,env(safe-area-inset-bottom))] pt-1">
-        {me?.hole &&
-          me.hole.length > 0 &&
-          (room.status === "playing" || room.status === "showdown") && (
-            <div className={`hero-holes ${me.folded ? "seat-folded" : ""}`}>
-              {me.hole.map((c, i) => (
-                <PlayingCard key={i} card={c} size="hero" dealDelayMs={i * 80} />
-              ))}
-            </div>
-          )}
+      <div className="table-dock">
         {room.myHandHint && myTurn && !me?.folded && (
-          <p className="max-w-full truncate text-[0.68rem] text-amber-100/70">{room.myHandHint}</p>
+          <p className="table-dock__hint">{room.myHandHint}</p>
         )}
+        <div className="table-dock__row">
+          {me?.hole &&
+            me.hole.length > 0 &&
+            (room.status === "playing" || room.status === "showdown") && (
+              <div className={`hero-holes ${me.folded ? "seat-folded" : ""}`}>
+                {me.hole.map((c, i) => (
+                  <PlayingCard key={i} card={c} size="hero" dealDelayMs={i * 80} />
+                ))}
+              </div>
+            )}
+          <div className="table-dock__actions">
+            {canBet && (
+              <>
+                <div className="flex w-full items-center gap-1.5">
+                  {[
+                    { label: "½ pote", amount: Math.min(allInTo, halfPot) },
+                    { label: "Pote", amount: Math.min(allInTo, potBet) },
+                    { label: "All-in", amount: allInTo },
+                  ].map((preset) => (
+                    <button
+                      key={preset.label}
+                      type="button"
+                      disabled={pending || raiseMax <= 0}
+                      onClick={() =>
+                        setRaiseTo(Math.min(raiseMax, Math.max(raiseMin, preset.amount)))
+                      }
+                      className="action-pill rounded-full border border-white/10 bg-white/5 px-2.5 py-1 text-[0.68rem] text-amber-50 hover:bg-white/10 disabled:opacity-30"
+                    >
+                      {preset.label}
+                    </button>
+                  ))}
+                  <span className="ml-auto min-w-[3.2rem] text-right text-sm font-bold tabular-nums text-amber-200">
+                    {formatChips(shownRaise)}
+                  </span>
+                </div>
+                <input
+                  type="range"
+                  className="table-raise"
+                  min={raiseMin}
+                  max={Math.max(raiseMin, raiseMax)}
+                  step={Math.max(1, room.bigBlind)}
+                  value={shownRaise}
+                  aria-label="Valor do raise"
+                  disabled={pending || raiseMax <= raiseMin}
+                  onChange={(e) => setRaiseTo(Number(e.target.value))}
+                />
+                <div className="flex w-full items-center gap-2">
+                  <button
+                    type="button"
+                    disabled={pending}
+                    onClick={() => api("action", { action: "fold" })}
+                    className="action-pill h-10 min-w-0 flex-1 rounded-full bg-rose-950/80 px-3 text-sm font-semibold text-rose-50 ring-1 ring-rose-400/35"
+                  >
+                    Fold
+                  </button>
+                  {toCall === 0 ? (
+                    <button
+                      type="button"
+                      disabled={pending}
+                      onClick={() => api("action", { action: "check" })}
+                      className="action-pill h-10 min-w-0 flex-1 rounded-full bg-emerald-800/90 px-3 text-sm font-semibold text-emerald-50 ring-1 ring-emerald-400/30"
+                    >
+                      Check
+                    </button>
+                  ) : (
+                    <button
+                      type="button"
+                      disabled={pending}
+                      onClick={() => api("action", { action: "call" })}
+                      className="action-pill h-10 min-w-0 flex-1 rounded-full bg-emerald-800/90 px-3 text-sm font-semibold text-emerald-50 ring-1 ring-emerald-400/30"
+                    >
+                      Call {formatChips(Math.min(toCall, me?.chips ?? toCall))}
+                    </button>
+                  )}
+                  <button
+                    type="button"
+                    disabled={pending || raiseMax <= 0}
+                    onClick={() =>
+                      api("action", {
+                        action: room.currentBet === 0 ? "bet" : "raise",
+                        amount: shownRaise,
+                      })
+                    }
+                    className="action-pill h-10 min-w-0 flex-1 rounded-full bg-amber-400 px-3 text-sm font-semibold text-[#1a1208]"
+                  >
+                    {room.currentBet === 0 ? "Bet" : "Raise"}
+                  </button>
+                </div>
+              </>
+            )}
 
-        {canBet && (
-          <div className="flex w-full max-w-md flex-col items-center gap-1.5">
-            <div className="flex w-full items-center gap-1.5">
-              {[
-                { label: "½ pote", amount: Math.min(allInTo, halfPot) },
-                { label: "Pote", amount: Math.min(allInTo, potBet) },
-                { label: "All-in", amount: allInTo },
-              ].map((preset) => (
-                <button
-                  key={preset.label}
-                  type="button"
-                  disabled={pending || raiseMax <= 0}
-                  onClick={() =>
-                    setRaiseTo(Math.min(raiseMax, Math.max(raiseMin, preset.amount)))
-                  }
-                  className="action-pill rounded-full border border-white/10 bg-white/5 px-2.5 py-1 text-[0.68rem] text-amber-50 hover:bg-white/10 disabled:opacity-30"
-                >
-                  {preset.label}
-                </button>
-              ))}
-              <span className="ml-auto min-w-[3.2rem] text-right text-sm font-bold tabular-nums text-amber-200">
-                {formatChips(shownRaise)}
-              </span>
-            </div>
-            <input
-              type="range"
-              className="table-raise"
-              min={raiseMin}
-              max={Math.max(raiseMin, raiseMax)}
-              step={Math.max(1, room.bigBlind)}
-              value={shownRaise}
-              aria-label="Valor do raise"
-              disabled={pending || raiseMax <= raiseMin}
-              onChange={(e) => setRaiseTo(Number(e.target.value))}
-            />
-            <div className="flex w-full items-center gap-2">
-              <button
-                type="button"
-                disabled={pending}
-                onClick={() => api("action", { action: "fold" })}
-                className="action-pill h-10 min-w-0 flex-1 rounded-full bg-rose-950/80 px-3 text-sm font-semibold text-rose-50 ring-1 ring-rose-400/35 sm:h-11"
+            {showPreActions && (
+              <div
+                className="flex w-full flex-wrap items-center justify-center gap-1.5"
+                role="group"
+                aria-label="Pré-ações"
               >
-                Fold
-              </button>
-              {toCall === 0 ? (
-                <button
-                  type="button"
-                  disabled={pending}
-                  onClick={() => api("action", { action: "check" })}
-                  className="action-pill h-10 min-w-0 flex-1 rounded-full bg-emerald-800/90 px-3 text-sm font-semibold text-emerald-50 ring-1 ring-emerald-400/30 sm:h-11"
-                >
-                  Check
-                </button>
-              ) : (
-                <button
-                  type="button"
-                  disabled={pending}
-                  onClick={() => api("action", { action: "call" })}
-                  className="action-pill h-10 min-w-0 flex-1 rounded-full bg-emerald-800/90 px-3 text-sm font-semibold text-emerald-50 ring-1 ring-emerald-400/30 sm:h-11"
-                >
-                  Call {formatChips(Math.min(toCall, me?.chips ?? toCall))}
-                </button>
-              )}
-              <button
-                type="button"
-                disabled={pending || raiseMax <= 0}
-                onClick={() =>
-                  api("action", {
-                    action: room.currentBet === 0 ? "bet" : "raise",
-                    amount: shownRaise,
-                  })
-                }
-                className="action-pill h-10 min-w-0 flex-1 rounded-full bg-amber-400 px-3 text-sm font-semibold text-[#1a1208] sm:h-11"
-              >
-                {room.currentBet === 0 ? "Bet" : "Raise"}
-              </button>
-            </div>
+                {(
+                  [
+                    { id: "check" as const, label: "Check se ninguém apostar" },
+                    { id: "fold_check" as const, label: "Fold/Check" },
+                    { id: "call_any" as const, label: "Cobrir qualquer" },
+                  ] as const
+                ).map((opt) => (
+                  <button
+                    key={opt.id}
+                    type="button"
+                    onClick={() => togglePre(opt.id)}
+                    aria-pressed={preAction === opt.id}
+                    className={`rounded-full px-2.5 py-1 text-[0.65rem] transition sm:text-xs ${
+                      preAction === opt.id
+                        ? "bg-amber-400 font-semibold text-[#1a1208]"
+                        : "border border-white/15 bg-white/5 text-amber-100/70 hover:bg-white/10"
+                    }`}
+                  >
+                    {opt.label}
+                  </button>
+                ))}
+              </div>
+            )}
+
+            {room.status === "lobby" && canSit && (
+              <p className="text-[0.65rem] text-emerald-100/50">Toque num assento livre</p>
+            )}
+            {room.status !== "playing" && me?.seat != null && !isHost && !room.tableEnded && (
+              <p className="text-[0.65rem] text-emerald-100/50">Aguardando o anfitrião…</p>
+            )}
           </div>
-        )}
-
-        {showPreActions && (
-          <div
-            className="flex w-full max-w-md flex-wrap items-center justify-center gap-1.5"
-            role="group"
-            aria-label="Pré-ações"
-          >
-            {(
-              [
-                { id: "check" as const, label: "Check se ninguém apostar" },
-                { id: "fold_check" as const, label: "Fold/Check" },
-                { id: "call_any" as const, label: "Cobrir qualquer" },
-              ] as const
-            ).map((opt) => (
-              <button
-                key={opt.id}
-                type="button"
-                onClick={() => togglePre(opt.id)}
-                aria-pressed={preAction === opt.id}
-                className={`rounded-full px-2.5 py-1 text-[0.65rem] transition sm:text-xs ${
-                  preAction === opt.id
-                    ? "bg-amber-400 font-semibold text-[#1a1208]"
-                    : "border border-white/15 bg-white/5 text-amber-100/70 hover:bg-white/10"
-                }`}
-              >
-                {opt.label}
-              </button>
-            ))}
-          </div>
-        )}
-
-        {room.status === "lobby" && canSit && (
-          <p className="text-[0.65rem] text-emerald-100/50">Toque num assento livre</p>
-        )}
-        {room.status !== "playing" && me?.seat != null && !isHost && !room.tableEnded && (
-          <p className="text-[0.65rem] text-emerald-100/50">Aguardando o anfitrião…</p>
-        )}
+        </div>
       </div>
 
       {isHost && (
         <button
           type="button"
           onClick={() => setHostOpen(true)}
-          className="action-pill fixed bottom-[calc(var(--table-fab,8.25rem)+env(safe-area-inset-bottom))] left-3 z-40 flex h-10 w-10 items-center justify-center rounded-full border border-white/10 bg-[#1a140c]/90 text-base text-amber-300 shadow-xl sm:left-5"
+          className="action-pill fixed bottom-[calc(var(--table-fab,8.5rem)+env(safe-area-inset-bottom))] left-3 z-40 flex h-10 w-10 items-center justify-center rounded-full border border-white/10 bg-[#1a140c]/90 text-base text-amber-300 shadow-xl sm:left-5"
           aria-label="Menu da mesa"
           title="Menu anfitrião"
         >

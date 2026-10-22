@@ -1,4 +1,5 @@
 import { Redis } from "@upstash/redis";
+import { renameLeader } from "@/lib/stats";
 import type { FeltAccent, UserProfile } from "@/lib/types";
 
 const PREFIX = "poker:profile:";
@@ -97,6 +98,13 @@ export async function saveProfile(
   if (typeof patch.chipColor === "string") merged.chipColor = patch.chipColor;
   if (typeof patch.feltAccent === "string") merged.feltAccent = patch.feltAccent;
   const next = sanitize(merged, fallbackName);
+  if (next.nickname !== cur.nickname) {
+    try {
+      await renameLeader(userId, next.nickname);
+    } catch (e) {
+      console.error("[profile] renameLeader", e);
+    }
+  }
   const r = redis();
   if (r) {
     await r.set(PREFIX + userId, JSON.stringify(next), { ex: 60 * 60 * 24 * 90 });
